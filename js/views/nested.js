@@ -505,12 +505,12 @@
 
     // Load + Input area
     + '      <div id="aiInputArea">'
-    + '        <button type="button" id="aiLoadModelBtn" class="' + btnPrimary + ' mb-4"><i class="fas fa-download"></i> Load AI Model</button>'
+    + '        <button type="button" id="aiLoadModelBtn" class="ai-load-model-btn ' + btnPrimary + ' mb-4"><i class="fas fa-download"></i> Load AI Model</button>'
     + '        <label class="' + labelCls + '"><i class="fas fa-comment-dots mr-1"></i> Describe what you want to find:</label>'
     + '        <textarea class="' + inputCls + ' mb-3 resize-none" id="aiRequestInput" rows="4">Find all payment failures from collect_service in the last 10 minutes, exclude insufficient balance errors</textarea>'
     + '        <div class="flex gap-2 mb-3">'
     + '          <button type="button" id="aiGenerateBtn" class="' + btnPrimary + '" disabled><i class="fas fa-bolt"></i> Generate</button>'
-    + '          <button type="button" id="aiGenerateDslBtn" class="' + btnPrimary + ' bg-amber-600 hover:bg-amber-700" disabled><i class="fas fa-code"></i> Generate DSL</button>'
+    + '          <button type="button" id="aiGenerateDslBtn" class="' + btnPrimary + '" disabled><i class="fas fa-code"></i> Generate DSL</button>'
     + '        </div>'
     + '      </div>'
 

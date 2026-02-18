@@ -333,14 +333,16 @@ function generateTimelineHtml(hits) {
     html += '<div class="log-timeline-item relative mb-2" data-searchable="' + searchable + '">';
     html += '<span class="absolute -left-6 top-1.5 w-2.5 h-2.5 rounded-full ring-2 ' + dotClass + '" title="' + ev.type + '"></span>';
     html += '<details class="log-timeline-details rounded border shadow-sm ' + cardClass + '">';
-    html += '<summary class="cursor-pointer p-2 list-none flex flex-wrap items-center gap-2 [&::-webkit-details-marker]:hidden">';
-    html += '<span class="text-xs font-mono text-slate-500">' + dom.escapeHtml(time) + '</span>';
+    html += '<summary class="log-timeline-summary cursor-pointer p-2 list-none [&::-webkit-details-marker]:hidden">';
+    html += '<span class="text-xs font-mono text-slate-500 whitespace-nowrap">' + dom.escapeHtml(time) + '</span>';
+    html += '<span class="log-timeline-meta flex items-center gap-1.5 flex-wrap">';
     html += '<span class="rounded-full bg-slate-200 text-slate-800 px-2 py-0.5 text-xs font-medium">' + label + '</span>';
     if (isError) html += '<span class="rounded-full bg-red-600 text-white px-2 py-0.5 text-xs font-medium"><i class="fas fa-times-circle mr-1"></i>Error</span>';
     else if (isWarn) html += '<span class="rounded-full bg-amber-600 text-white px-2 py-0.5 text-xs font-medium"><i class="fas fa-exclamation-triangle mr-1"></i>Warning</span>';
     else if (isContext) html += '<span class="rounded-full bg-sky-200 text-sky-800 px-2 py-0.5 text-xs font-medium">Context</span>';
-    html += '<span class="text-sm text-slate-700 break-words flex-1 min-w-0">' + msg + '</span>';
-    html += '<span class="text-slate-400 text-xs">Click to expand</span>';
+    html += '</span>';
+    html += '<span class="log-timeline-msg text-sm text-slate-700 min-w-0" title="' + escapeAttr((s.message || '').slice(0, 200)) + '">' + msg + '</span>';
+    html += '<span class="text-slate-400 text-xs whitespace-nowrap shrink-0">Click to expand</span>';
     html += '</summary>';
     html += '<div class="px-2 pb-2">' + fullLogHtml(ev.hit) + '</div>';
     html += '</details></div>';
@@ -379,6 +381,38 @@ function buildLogSummaryForAI(hits, uniqueDetails, occurrences, sortedLabels, to
   return parts.join('. ');
 }
 
+/** Build richer log context for AI Q&A (includes full messages, params) */
+function buildLogContextForQA(hits, uniqueDetails, occurrences, sortedLabels, totalHits) {
+  var parts = [];
+  parts.push('=== LOG SUMMARY ===');
+  parts.push('Total: ' + totalHits + ' entries.');
+  var errorCount = 0, warnCount = 0;
+  hits.forEach(function (h) {
+    var l = (h._source.level || '').toLowerCase();
+    if (l === 'error') errorCount++;
+    else if (l === 'warning') warnCount++;
+  });
+  if (errorCount > 0) parts.push('Errors: ' + errorCount);
+  if (warnCount > 0) parts.push('Warnings: ' + warnCount);
+  if (sortedLabels && sortedLabels.length > 0) {
+    parts.push('Labels: ' + sortedLabels.slice(0, 10).map(function (e) { return e[0] + '(' + e[1] + ')'; }).join(', '));
+  }
+  if (uniqueDetails && Object.keys(uniqueDetails).length > 0) {
+    parts.push('Key details: ' + JSON.stringify(uniqueDetails));
+  }
+  if (occurrences && occurrences.length > 0) {
+    parts.push('');
+    parts.push('=== ERRORS & WARNINGS ===');
+    occurrences.forEach(function (o, i) {
+      parts.push('[' + (i + 1) + '] level=' + o.level + ' label=' + o.label + ' time=' + o.time);
+      parts.push('message: ' + (o.message || '').slice(0, 300));
+      if (o.params && o.params !== 'N/A') parts.push('params: ' + String(o.params).slice(0, 500));
+    });
+  }
+  var ctx = parts.join('\n');
+  return ctx.length > 6000 ? ctx.slice(0, 6000) + '\n...[truncated]' : ctx;
+}
+
 /** Setup AI Search section event handlers (called after runAnalysis injects HTML) */
 function setupAiSearchSection(container, logSummary) {
   var aiPlanner = window.App && window.App.aiPlanner;
@@ -408,20 +442,26 @@ function setupAiSearchSection(container, logSummary) {
 
   if (loadBtn) {
     loadBtn.addEventListener('click', function () {
+      if (aiPlanner.getStatus() === 'ready') {
+        setAllLoadModelButtonsReady();
+        return;
+      }
       updateStatus('Loading model...');
       loadBtn.disabled = true;
       aiPlanner.loadModel(function (p) {
         var pct = (p && typeof p.progress === 'number') ? Math.round(p.progress * 100) : null;
         updateStatus('Loading: ' + (pct != null ? pct + '%' : (p && p.text) || '...'));
       }).then(function () {
+        setAllLoadModelButtonsReady();
         updateStatus('Model ready');
-        setGenerateEnabled(true);
-        loadBtn.disabled = false;
       }).catch(function (err) {
         updateStatus('Error: ' + (err && err.message ? err.message : 'Failed'));
         loadBtn.disabled = false;
       });
     });
+  }
+  if (aiPlanner.getStatus() === 'ready') {
+    setAllLoadModelButtonsReady();
   }
 
   if (genBtn) {
@@ -499,6 +539,25 @@ function debounce(fn, ms) {
   };
 }
 
+/** Escape special regex chars for safe use in RegExp */
+function escapeRegex(str) {
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/** Apply yellow highlight to search terms in timeline item HTML (only in text between tags) */
+function highlightTermsInHtml(html, terms) {
+  if (!terms || terms.length === 0) return html;
+  var sorted = terms.slice().sort(function (a, b) { return b.length - a.length; });
+  return html.replace(/>([^<]*)</g, function (full, text) {
+    var highlighted = text;
+    sorted.forEach(function (term) {
+      var re = new RegExp('(' + escapeRegex(term) + ')', 'gi');
+      highlighted = highlighted.replace(re, '<mark class="search-highlight">$1</mark>');
+    });
+    return '>' + highlighted + '<';
+  });
+}
+
 /** Setup smart real-time search for Log flow timeline */
 function setupTimelineSearch() {
   var input = document.getElementById('timelineSearchInput');
@@ -519,6 +578,10 @@ function setupTimelineSearch() {
       var match = terms.length === 0 || terms.every(function (t) { return searchable.indexOf(t) !== -1; });
       item.classList.toggle('timeline-search-hidden', !match);
       if (match) visible++;
+
+      if (!item.dataset.originalHtml) item.dataset.originalHtml = item.innerHTML;
+      var baseHtml = item.dataset.originalHtml;
+      item.innerHTML = terms.length > 0 ? highlightTermsInHtml(baseHtml, terms) : baseHtml;
     });
 
     if (q && countEl) {
@@ -556,22 +619,26 @@ function setupAiNaturalLanguageSearch() {
 
   if (loadBtn && aiPlanner) {
     loadBtn.addEventListener('click', function () {
+      if (aiPlanner.getStatus() === 'ready') {
+        setAllLoadModelButtonsReady();
+        return;
+      }
       updateStatus('Loading model...');
       loadBtn.disabled = true;
       aiPlanner.loadModel(function (p) {
         var pct = (p && typeof p.progress === 'number') ? Math.round(p.progress * 100) : null;
         updateStatus('Loading: ' + (pct != null ? pct + '%' : (p && p.text) || '...'));
       }).then(function () {
+        setAllLoadModelButtonsReady();
         updateStatus('Model ready');
-        btn.disabled = false;
-        loadBtn.disabled = false;
-        var aiSearchGenBtn = document.getElementById('aiSearchGenerateBtn');
-        if (aiSearchGenBtn) aiSearchGenBtn.disabled = false;
       }).catch(function (err) {
         updateStatus('Error: ' + (err && err.message ? err.message : 'Failed'));
         loadBtn.disabled = false;
       });
     });
+  }
+  if (aiPlanner && aiPlanner.getStatus() === 'ready') {
+    setAllLoadModelButtonsReady();
   }
 
   btn.addEventListener('click', function () {
@@ -617,6 +684,102 @@ function setupAiNaturalLanguageSearch() {
       btn.disabled = false;
     }).catch(function (err) {
       updateStatus('Error: ' + (err && err.message ? err.message : 'Failed'));
+      btn.disabled = false;
+    });
+  });
+
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      btn.click();
+    }
+  });
+}
+
+var AI_LOG_QA_SYSTEM = 'You are a log analysis assistant. The user will provide log data and ask a question. Answer based ONLY on the log content. Be concise and direct. If the logs do not contain enough information, say so.';
+
+/** Set all Load Model buttons on the page to ready (green) state */
+function setAllLoadModelButtonsReady() {
+  var btns = document.querySelectorAll('.ai-load-model-btn');
+  btns.forEach(function (btn) {
+    btn.classList.add('ai-load-model-ready');
+    btn.innerHTML = '<i class="fas fa-check-circle"></i> Model ready';
+    btn.disabled = false;
+  });
+  var genBtns = ['aiSearchGenerateBtn', 'aiNaturalSearchBtn', 'aiLogQaBtn'];
+  genBtns.forEach(function (id) {
+    var el = document.getElementById(id);
+    if (el) el.disabled = false;
+  });
+}
+
+/** Setup AI Log Q&A (ask questions, get text answers from logs) */
+function setupAiLogQaSection(logContext) {
+  var aiPlanner = window.App && window.App.aiPlanner;
+  var loadBtn = document.getElementById('aiLogQaLoadModelBtn');
+  var input = document.getElementById('aiLogQaInput');
+  var btn = document.getElementById('aiLogQaBtn');
+  var statusEl = document.getElementById('aiLogQaStatus');
+  var resultDiv = document.getElementById('aiLogQaResult');
+  if (!input || !btn) return;
+
+  function updateStatus(text) {
+    if (statusEl) statusEl.textContent = text;
+  }
+
+  if (loadBtn && aiPlanner) {
+    loadBtn.addEventListener('click', function () {
+      if (aiPlanner.getStatus() === 'ready') {
+        setAllLoadModelButtonsReady();
+        return;
+      }
+      updateStatus('Loading model...');
+      loadBtn.disabled = true;
+      aiPlanner.loadModel(function (p) {
+        var pct = (p && typeof p.progress === 'number') ? Math.round(p.progress * 100) : null;
+        updateStatus('Loading: ' + (pct != null ? pct + '%' : (p && p.text) || '...'));
+      }).then(function () {
+        setAllLoadModelButtonsReady();
+        updateStatus('Model ready');
+      }).catch(function (err) {
+        updateStatus('Error: ' + (err && err.message ? err.message : 'Failed'));
+        loadBtn.disabled = false;
+      });
+    });
+  }
+
+  if (aiPlanner && aiPlanner.getStatus() === 'ready') {
+    setAllLoadModelButtonsReady();
+  }
+
+  btn.addEventListener('click', function () {
+    var q = (input.value || '').trim();
+    if (!q) {
+      updateStatus('Enter a question');
+      return;
+    }
+    if (aiPlanner.getStatus() !== 'ready') {
+      updateStatus('Load model first (see AI Natural Language Search or AI Search Query Suggestion)');
+      return;
+    }
+    updateStatus('Searching in logs…');
+    btn.disabled = true;
+    resultDiv.classList.add('hidden');
+    var userMsg = 'Log data:\n\n' + logContext + '\n\n---\n\nUser question: ' + q;
+    aiPlanner.generateText(userMsg, AI_LOG_QA_SYSTEM).then(function (answer) {
+      var text = (answer || '').trim();
+      if (resultDiv) {
+        resultDiv.textContent = text || '(No answer generated)';
+        resultDiv.classList.remove('hidden');
+      }
+      updateStatus('Done');
+      btn.disabled = false;
+    }).catch(function (err) {
+      updateStatus('Error: ' + (err && err.message ? err.message : 'Failed'));
+      if (resultDiv) {
+        resultDiv.textContent = 'Error: ' + (err && err.message ? err.message : 'Failed');
+        resultDiv.classList.remove('hidden');
+      }
       btn.disabled = false;
     });
   });
@@ -714,7 +877,7 @@ function generateEmailContent(container, uniqueDetails, hits, occurrences, conne
 
   const emailOutputEl = document.getElementById('emailOutput');
   if (!emailOutputEl) return;
-  emailOutputEl.innerHTML = '<div class="email-content"><strong class="text-slate-800">Email to Team:</strong><textarea id="emailContent" class="w-full border border-slate-300 rounded-lg p-4 bg-slate-50 mt-2 text-sm font-mono resize-y min-h-[300px]" rows="20">' + dom.escapeHtml(emailBody) + '</textarea><div class="mt-3 flex flex-wrap gap-2"><button type="button" id="copyEmailBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white px-4 py-2 text-sm font-medium transition shadow-sm"><i class="fas fa-copy"></i> Copy to Clipboard</button><button type="button" id="clearEmailBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm font-medium transition shadow-sm"><i class="fas fa-trash-alt"></i> Clear</button></div><div id="copyFeedback" class="mt-2 text-green-600 text-sm hidden"><i class="fas fa-check-circle mr-1"></i>Email content copied to clipboard!</div></div>';
+  emailOutputEl.innerHTML = '<details class="analyze-section mb-3 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden"><summary class="analyze-section-summary cursor-pointer px-4 py-2.5 bg-slate-50 hover:bg-slate-100 font-semibold text-slate-800 flex items-center gap-2"><i class="fas fa-envelope mr-1"></i> Email to Team</summary><div class="email-content p-3 border-t border-slate-200 bg-slate-50/30"><textarea id="emailContent" class="w-full border border-slate-300 rounded-lg p-4 bg-slate-50 mt-2 text-sm font-mono resize-y min-h-[300px]" rows="20">' + dom.escapeHtml(emailBody) + '</textarea><div class="mt-3 flex flex-wrap gap-2"><button type="button" id="copyEmailBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white px-4 py-2 text-sm font-medium transition shadow-sm"><i class="fas fa-copy"></i> Copy to Clipboard</button><button type="button" id="clearEmailBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm font-medium transition shadow-sm"><i class="fas fa-trash-alt"></i> Clear</button></div><div id="copyFeedback" class="mt-2 text-green-600 text-sm hidden"><i class="fas fa-check-circle mr-1"></i>Email content copied to clipboard!</div></div></details>';
   emailOutputEl.classList.remove('hidden');
 
   const copyBtn = document.getElementById('copyEmailBtn');
@@ -759,6 +922,18 @@ function runAnalysis(container) {
   let results = '<div class="analyze-results-wrapper rounded-xl bg-slate-100/80 border border-slate-200 p-4">';
   results += '<h2 class="text-lg font-bold text-slate-800 mb-3"><i class="fas fa-chart-line mr-2"></i>Log Analysis Results</h2>';
 
+  results += '<div class="ai-log-qa-bar mb-4 p-4 bg-violet-50 border border-violet-200 rounded-xl">';
+  results += '<label class="block text-sm font-semibold text-violet-900 mb-2"><i class="fas fa-robot text-violet-600 mr-1"></i> Ask about these logs</label>';
+  results += '<p class="text-xs text-violet-700 mb-2">Ask a question (e.g. What is the reason for failure? What went wrong?). AI analyzes all logs and returns a text answer.</p>';
+  results += '<div class="flex flex-wrap items-center gap-2 mb-2">';
+  results += '<button type="button" id="aiLogQaLoadModelBtn" class="ai-load-model-btn inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 text-sm font-semibold transition shadow-md whitespace-nowrap"><i class="fas fa-download"></i> Load Model</button>';
+  results += '<input type="text" id="aiLogQaInput" placeholder="e.g. What is the reason for the failure? What caused the error?" class="flex-1 min-w-[280px] rounded-lg border border-violet-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-violet-500 focus:border-violet-500" autocomplete="off" />';
+  results += '<button type="button" id="aiLogQaBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 text-sm font-medium transition shadow-sm whitespace-nowrap disabled:opacity-50"><i class="fas fa-search"></i> Ask AI</button>';
+  results += '</div>';
+  results += '<span id="aiLogQaStatus" class="text-xs text-violet-600"></span>';
+  results += '<div id="aiLogQaResult" class="hidden mt-3 p-3 bg-white rounded-lg border border-violet-200 text-sm text-slate-800 whitespace-pre-wrap"></div>';
+  results += '</div>';
+
   results += '<details class="analyze-section analyze-section-timeline mb-3 rounded-xl border border-slate-200 shadow-sm overflow-hidden" open>';
   results += '<summary class="analyze-section-summary cursor-pointer px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 font-semibold text-slate-800 flex items-center gap-2"><i class="fas fa-stream"></i> Log flow timeline</summary>';
   results += '<div class="p-2 border-t border-slate-200 bg-slate-50/50">';
@@ -770,19 +945,20 @@ function runAnalysis(container) {
   results += '<input type="text" id="timelineSearchInput" placeholder="Search all logs (time, label, message, level, params)…" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" autocomplete="off" />';
   results += '<span id="timelineSearchCount" class="hidden text-xs text-slate-500 mt-1"></span>';
   results += '</div>';
-  results += '<div class="ai-natural-search-bar mb-2 mt-3 pt-3 border-t border-slate-200">';
-  results += '<label class="block text-xs font-medium text-slate-600 mb-1"><i class="fas fa-robot text-indigo-500 mr-1"></i> AI Natural Language Search</label>';
-  results += '<div class="flex flex-wrap gap-2">';
-  results += '<button type="button" id="aiNaturalLoadModelBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 text-sm font-medium transition shadow-sm whitespace-nowrap"><i class="fas fa-download"></i> Load Model</button>';
-  results += '<input type="text" id="aiNaturalSearchInput" placeholder="e.g. payment errors, timeouts, collect_service failures…" class="flex-1 min-w-[200px] rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" autocomplete="off" />';
-  results += '<button type="button" id="aiNaturalSearchBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 text-sm font-medium transition shadow-sm whitespace-nowrap disabled:opacity-50"><i class="fas fa-magic"></i> AI Search</button>';
+  results += '<div class="ai-natural-search-bar mb-2 mt-3 p-4 bg-violet-50 border border-violet-200 rounded-xl">';
+  results += '<label class="block text-sm font-semibold text-violet-900 mb-2"><i class="fas fa-robot text-violet-600 mr-1"></i> AI Natural Language Search</label>';
+  results += '<p class="text-xs text-violet-700 mb-2">Search logs with natural language (e.g. payment errors, timeouts, collect_service failures).</p>';
+  results += '<div class="flex flex-wrap items-center gap-2 mb-2">';
+  results += '<button type="button" id="aiNaturalLoadModelBtn" class="ai-load-model-btn inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 text-sm font-semibold transition shadow-md whitespace-nowrap"><i class="fas fa-download"></i> Load Model</button>';
+  results += '<input type="text" id="aiNaturalSearchInput" placeholder="e.g. payment errors, timeouts, collect_service failures…" class="flex-1 min-w-[200px] rounded-lg border border-violet-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-violet-500 focus:border-violet-500" autocomplete="off" />';
+  results += '<button type="button" id="aiNaturalSearchBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 text-sm font-medium transition shadow-sm whitespace-nowrap disabled:opacity-50"><i class="fas fa-search"></i> AI Search</button>';
   results += '</div>';
-  results += '<span id="aiNaturalSearchStatus" class="text-xs text-slate-500 mt-1"></span>';
+  results += '<span id="aiNaturalSearchStatus" class="text-xs text-violet-600"></span>';
   results += '</div>';
   results += '<div class="log-timeline-wrapper overflow-y-auto" id="logTimelineWrapper">' + generateTimelineHtml(hits) + '</div>';
   results += '</div></details>';
 
-  results += '<details class="analyze-section mb-3 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden" open>';
+  results += '<details class="analyze-section mb-3 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">';
   results += '<summary class="analyze-section-summary cursor-pointer px-4 py-2.5 bg-slate-50 hover:bg-slate-100 font-semibold text-slate-800 flex items-center gap-2"><i class="fas fa-chart-bar"></i> Charts</summary>';
   results += '<div class="p-3 border-t border-slate-200 bg-slate-50/30"><div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="canvasPlaceholder"></div></div>';
   results += '</details>';
@@ -829,7 +1005,7 @@ function runAnalysis(container) {
     results += '<div class="p-3 border-t border-slate-200 bg-slate-50/30">' + generateConnectorsServiceHtml(connectorsDetails).replace('<h3 class="mt-6 text-base font-semibold text-slate-800 mb-2">Connectors Service Details</h3>', '') + '</div></details>';
   }
 
-  results += '<details class="analyze-section analyze-section-errors mb-3 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden" open>';
+  results += '<details class="analyze-section analyze-section-errors mb-3 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">';
   results += '<summary class="analyze-section-summary cursor-pointer px-4 py-2.5 bg-slate-50 hover:bg-slate-100 font-semibold text-slate-800 flex items-center gap-2"><i class="fas fa-exclamation-triangle text-red-600"></i> Errors &amp; warnings' + (occurrenceIndex > 0 ? ' <span class="rounded-full bg-red-100 text-red-800 text-xs px-2 py-0.5">' + occurrenceIndex + '</span>' : '') + '</summary>';
   results += '<div class="p-3 border-t border-slate-200 bg-slate-50/30 errors-section-body">' + (occurrencesHtml || '<div class="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-slate-800 text-sm"><i class="fas fa-check-circle mr-2 text-green-600"></i>No significant issues detected.</div>') + '</div></details>';
 
@@ -838,7 +1014,7 @@ function runAnalysis(container) {
   results += '<div class="p-3 border-t border-slate-200 bg-slate-50/30">';
   results += '<p class="text-sm text-slate-600 mb-3">Based on the analyzed logs, generate an OpenSearch alert query to find similar logs. Uses browser LLM (no backend).</p>';
   results += '<div class="flex flex-wrap items-center gap-2 mb-3">';
-  results += '<button type="button" id="aiSearchLoadModelBtn" class="inline-flex items-center gap-2 rounded-lg bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 text-sm font-medium transition shadow-sm"><i class="fas fa-download"></i> Load Model</button>';
+  results += '<button type="button" id="aiSearchLoadModelBtn" class="ai-load-model-btn inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 text-sm font-semibold transition shadow-md"><i class="fas fa-download"></i> Load Model</button>';
   results += '<button type="button" id="aiSearchGenerateBtn" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 text-sm font-medium transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-magic"></i> Generate Query</button>';
   results += '<span id="aiSearchStatus" class="text-xs text-slate-500"></span>';
   results += '</div>';
@@ -856,6 +1032,9 @@ function runAnalysis(container) {
 
   var logSummary = buildLogSummaryForAI(hits, uniqueDetails, occurrences, sortedLabels, totalHits);
   setupAiSearchSection(container, logSummary);
+
+  var logContext = buildLogContextForQA(hits, uniqueDetails, occurrences, sortedLabels, totalHits);
+  setupAiLogQaSection(logContext);
 
   const placeholder = document.getElementById('canvasPlaceholder');
   if (placeholder) placeholder.innerHTML = '';

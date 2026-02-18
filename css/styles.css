@@ -113,6 +113,29 @@
 .log-timeline-item.timeline-search-hidden {
   display: none !important;
 }
+.log-timeline-summary {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 0 0.75rem;
+}
+.log-timeline-msg {
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  word-break: break-word;
+  line-height: 1.4;
+}
+@media (max-width: 640px) {
+  .log-timeline-summary {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+  .log-timeline-msg {
+    -webkit-line-clamp: 3;
+  }
+}
 
 /* Analyze results – less blank white space */
 #logOutput,
@@ -422,6 +445,46 @@
 }
 
 /* Raw plan output */
+/* Load Model button – compact size, same when Load vs Model ready */
+.ai-load-model-btn {
+  cursor: pointer;
+  font-size: 0.75rem !important;
+  font-weight: 600;
+  padding: 0.25rem 0.625rem !important;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border: 2px solid transparent;
+}
+.ai-load-model-btn:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+.ai-load-model-btn:focus {
+  outline: 2px solid rgba(99, 102, 241, 0.6);
+  outline-offset: 2px;
+}
+.ai-load-model-btn.ai-load-model-ready {
+  background-color: #d1fae5 !important;
+  border-color: #a7f3d0 !important;
+  color: #059669 !important;
+  cursor: default;
+  font-weight: 500;
+  box-shadow: none;
+}
+.ai-load-model-btn.ai-load-model-ready:hover {
+  background-color: #a7f3d0 !important;
+  border-color: #6ee7b7 !important;
+  transform: none;
+}
+
+/* Search highlight in timeline */
+.search-highlight {
+  background-color: #fef08a;
+  padding: 0 2px;
+  border-radius: 2px;
+}
+
 .ai-raw-plan {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.75rem;
