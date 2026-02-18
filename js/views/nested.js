@@ -508,7 +508,23 @@
     + '        <button type="button" id="aiLoadModelBtn" class="' + btnPrimary + ' mb-4"><i class="fas fa-download"></i> Load AI Model</button>'
     + '        <label class="' + labelCls + '"><i class="fas fa-comment-dots mr-1"></i> Describe what you want to find:</label>'
     + '        <textarea class="' + inputCls + ' mb-3 resize-none" id="aiRequestInput" rows="4">Find all payment failures from collect_service in the last 10 minutes, exclude insufficient balance errors</textarea>'
-    + '        <button type="button" id="aiGenerateBtn" class="' + btnPrimary + '" disabled><i class="fas fa-bolt"></i> Generate</button>'
+    + '        <div class="flex gap-2 mb-3">'
+    + '          <button type="button" id="aiGenerateBtn" class="' + btnPrimary + '" disabled><i class="fas fa-bolt"></i> Generate</button>'
+    + '          <button type="button" id="aiGenerateDslBtn" class="' + btnPrimary + ' bg-amber-600 hover:bg-amber-700" disabled><i class="fas fa-code"></i> Generate DSL</button>'
+    + '        </div>'
+    + '      </div>'
+
+    // DSL output panel (separate from Apply to Conditions)
+    + '      <div id="aiDslPanel" class="hidden mt-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">'
+    + '        <div class="flex items-center justify-between mb-2">'
+    + '          <h4 class="text-sm font-semibold text-amber-900"><i class="fas fa-code mr-1"></i> DSL Response</h4>'
+    + '          <div class="flex gap-2">'
+    + '            <button type="button" id="aiDslCopyBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-slate-600 hover:bg-slate-700 text-white px-3 py-1.5 text-xs font-medium transition"><i class="fas fa-copy"></i> Copy</button>'
+    + '            <button type="button" id="aiDslEditBtn" class="inline-flex items-center justify-center rounded-lg bg-amber-600 hover:bg-amber-700 text-white p-1.5 text-xs transition" title="Edit"><i class="fas fa-pencil-alt"></i></button>'
+    + '          </div>'
+    + '        </div>'
+    + '        <pre id="aiDslOutput" class="text-sm text-slate-800 bg-white p-3 rounded border border-amber-200 overflow-x-auto max-h-48 overflow-y-auto font-mono whitespace-pre-wrap"></pre>'
+    + '        <textarea id="aiDslOutputEdit" class="hidden w-full text-sm text-slate-800 bg-white p-3 rounded border border-amber-200 font-mono resize-y min-h-[120px] max-h-64" spellcheck="false" placeholder="Edit DSL JSON..."></textarea>'
     + '      </div>'
 
     // Results panel (hidden until generation)
@@ -1158,10 +1174,11 @@
     var planner = window.App && window.App.aiPlanner;
     if (!planner) return;
 
-    var loadBtn   = byId('aiLoadModelBtn', r);
-    var genBtn    = byId('aiGenerateBtn', r);
-    var applyBtn  = byId('aiApplyBtn', r);
-    var requestEl = byId('aiRequestInput', r);
+    var loadBtn     = byId('aiLoadModelBtn', r);
+    var genBtn      = byId('aiGenerateBtn', r);
+    var genDslBtn   = byId('aiGenerateDslBtn', r);
+    var applyBtn   = byId('aiApplyBtn', r);
+    var requestEl  = byId('aiRequestInput', r);
 
     // Load Model
     if (loadBtn) {
@@ -1188,6 +1205,7 @@
           loadBtn.style.display = 'none';
           if (progressWrap) progressWrap.classList.add('hidden');
           if (genBtn) genBtn.disabled = false;
+          if (genDslBtn) genDslBtn.disabled = false;
         }).catch(function (err) {
           updateAiStatusBadge(r, 'error', 'Error: ' + (err.message || err));
           loadBtn.disabled = false;
@@ -1228,6 +1246,106 @@
     if (applyBtn) {
       applyBtn.addEventListener('click', function () {
         applyAiPlanToConditions(container);
+      });
+    }
+
+    // Generate DSL (OpenSearch Query DSL, does not apply to nested builder)
+    if (genDslBtn) {
+      genDslBtn.addEventListener('click', function () {
+        var userRequest = requestEl ? requestEl.value.trim() : '';
+        if (!userRequest) return;
+
+        genDslBtn.disabled = true;
+        genDslBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+        updateAiStatusBadge(r, 'generating', 'Generating DSL...');
+
+        var tfEl = byId('alertTimeFrame', r);
+        var currentState = { timeframe: tfEl ? tfEl.value : 'now-1h' };
+
+        planner.generatePlan(userRequest, currentState).then(function (result) {
+          updateAiStatusBadge(r, 'ready', 'Ready');
+          genDslBtn.disabled = false;
+          genDslBtn.innerHTML = '<i class="fas fa-code"></i> Generate DSL';
+          var dslPanel = byId('aiDslPanel', r);
+          var dslOutput = byId('aiDslOutput', r);
+          if (dslPanel) dslPanel.classList.remove('hidden');
+          var dslEdit = byId('aiDslOutputEdit', r);
+          if (dslOutput) {
+            var content;
+            if (result.plan && result.plan.valid && result.plan.plan) {
+              var plan = result.plan.plan;
+              var conditions = [];
+              (plan.must || []).forEach(function (c) {
+                conditions.push({ clause: 'must', field: c.field, operator: c.op, value: c.value });
+              });
+              (plan.must_not || []).forEach(function (c) {
+                conditions.push({ clause: 'must_not', field: c.field, operator: c.op, value: c.value });
+              });
+              var compiler = window.App && window.App.queryCompiler;
+              var aggs = planner.buildAggregationsFromPlan && planner.buildAggregationsFromPlan(plan.aggs);
+              var dsl = compiler ? compiler.compile(conditions, plan.timeframe || 'now-1h', aggs) : null;
+              content = dsl ? JSON.stringify(dsl, null, 2) : '(Could not compile DSL)';
+            } else {
+              content = '(Invalid plan: ' + ((result.plan && result.plan.errors) ? result.plan.errors.join(', ') : 'unknown') + ')';
+            }
+            dslOutput.textContent = content;
+            if (dslEdit) dslEdit.value = content;
+          }
+        }).catch(function (err) {
+          updateAiStatusBadge(r, 'ready', 'Ready');
+          genDslBtn.disabled = false;
+          genDslBtn.innerHTML = '<i class="fas fa-code"></i> Generate DSL';
+          var dslPanel = byId('aiDslPanel', r);
+          var dslOutput = byId('aiDslOutput', r);
+          if (dslPanel) dslPanel.classList.remove('hidden');
+          var errMsg = 'Error: ' + (err.message || String(err));
+          if (dslOutput) dslOutput.textContent = errMsg;
+          var dslEditErr = byId('aiDslOutputEdit', r);
+          if (dslEditErr) dslEditErr.value = errMsg;
+        });
+      });
+    }
+
+    // DSL Copy and Edit buttons
+    var dslCopyBtn = byId('aiDslCopyBtn', r);
+    var dslEditBtn = byId('aiDslEditBtn', r);
+    var dslOutputEl = byId('aiDslOutput', r);
+    var dslEditEl = byId('aiDslOutputEdit', r);
+
+    if (dslCopyBtn) {
+      dslCopyBtn.addEventListener('click', function () {
+        var text = (dslEditEl && !dslEditEl.classList.contains('hidden')) ? dslEditEl.value : (dslOutputEl ? dslOutputEl.textContent : '');
+        if (!text) return;
+        var dom = window.App && window.App.dom;
+        if (dom && dom.copyToClipboard) {
+          dom.copyToClipboard(text).then(function (ok) {
+            if (ok && dslCopyBtn) {
+              var orig = dslCopyBtn.innerHTML;
+              dslCopyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+              setTimeout(function () { if (dslCopyBtn) dslCopyBtn.innerHTML = orig; }, 2000);
+            }
+          });
+        }
+      });
+    }
+
+    if (dslEditBtn && dslOutputEl && dslEditEl) {
+      dslEditBtn.addEventListener('click', function () {
+        var isEditing = !dslEditEl.classList.contains('hidden');
+        if (isEditing) {
+          dslOutputEl.textContent = dslEditEl.value;
+          dslEditEl.classList.add('hidden');
+          dslOutputEl.classList.remove('hidden');
+          dslEditBtn.innerHTML = '<i class="fas fa-pencil-alt"></i>';
+          dslEditBtn.title = 'Edit';
+        } else {
+          dslEditEl.value = dslOutputEl.textContent || '';
+          dslOutputEl.classList.add('hidden');
+          dslEditEl.classList.remove('hidden');
+          dslEditEl.focus();
+          dslEditBtn.innerHTML = '<i class="fas fa-check"></i>';
+          dslEditBtn.title = 'Done editing';
+        }
       });
     }
   }
