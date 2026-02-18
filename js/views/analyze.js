@@ -602,6 +602,31 @@ function setupTimelineSearch() {
   });
 }
 
+/** Setup Expand all / Collapse all button for analyze sections */
+function setupExpandCollapseAll() {
+  var btn = document.getElementById('expandCollapseAllBtn');
+  if (!btn) return;
+
+  btn.addEventListener('click', function () {
+    var sections = document.querySelectorAll('.analyze-results-wrapper .analyze-section');
+    var isExpanded = btn.querySelector('i').classList.contains('fa-chevron-up');
+
+    sections.forEach(function (el) {
+      if (isExpanded) {
+        el.removeAttribute('open');
+      } else {
+        el.setAttribute('open', '');
+      }
+    });
+
+    if (isExpanded) {
+      btn.innerHTML = '<i class="fas fa-chevron-down"></i> Expand all';
+    } else {
+      btn.innerHTML = '<i class="fas fa-chevron-up"></i> Collapse all';
+    }
+  });
+}
+
 /** Setup timeline fullscreen expand/collapse */
 function setupTimelineFullscreen() {
   var expandBtn = document.getElementById('timelineExpandBtn');
@@ -1030,7 +1055,10 @@ function runAnalysis(container) {
 
   const hits = parseLogs(logs);
   let results = '<div class="analyze-results-wrapper rounded-xl bg-slate-100/80 border border-slate-200 p-4">';
-  results += '<h2 class="text-lg font-bold text-slate-800 mb-3"><i class="fas fa-chart-line mr-2"></i>Log Analysis Results</h2>';
+  results += '<div class="flex flex-wrap items-center justify-between gap-2 mb-3">';
+  results += '<h2 class="text-lg font-bold text-slate-800"><i class="fas fa-chart-line mr-2"></i>Log Analysis Results</h2>';
+  results += '<button type="button" id="expandCollapseAllBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-slate-600 hover:bg-slate-700 text-white px-3 py-1.5 text-xs font-medium transition"><i class="fas fa-chevron-down"></i> Expand all</button>';
+  results += '</div>';
 
   results += '<div class="ai-log-qa-bar mb-4 p-4 bg-violet-50 border border-violet-200 rounded-xl">';
   results += '<label class="block text-sm font-semibold text-violet-900 mb-2"><i class="fas fa-robot text-violet-600 mr-1"></i> Ask about these logs</label>';
@@ -1143,6 +1171,7 @@ function runAnalysis(container) {
 
   setupTimelineSearch();
   setupTimelineFullscreen();
+  setupExpandCollapseAll();
   setupAiNaturalLanguageSearch();
 
   var logSummary = buildLogSummaryForAI(hits, uniqueDetails, occurrences, sortedLabels, totalHits);
