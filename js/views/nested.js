@@ -1141,6 +1141,14 @@
     // Initial state
     createConditionRow(container);
     handleConvertButtonClick(container);
+
+    // Apply pending AI plan from Analyze Log (Open Nested Search click)
+    var pending = window.App && window.App.pendingAiPlanFromAnalyze;
+    if (pending && pending.plan) {
+      lastAiPlan = pending.plan;
+      applyAiPlanToConditions(container);
+      window.App.pendingAiPlanFromAnalyze = null;
+    }
   }
 
   // ─── AI Section Mount ──────────────────────────────────────────

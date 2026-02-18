@@ -411,7 +411,8 @@ function setupAiSearchSection(container, logSummary) {
       updateStatus('Loading model...');
       loadBtn.disabled = true;
       aiPlanner.loadModel(function (p) {
-        updateStatus('Loading: ' + (p ? Math.round(p * 100) + '%' : '...'));
+        var pct = (p && typeof p.progress === 'number') ? Math.round(p.progress * 100) : null;
+        updateStatus('Loading: ' + (pct != null ? pct + '%' : (p && p.text) || '...'));
       }).then(function () {
         updateStatus('Model ready');
         setGenerateEnabled(true);
@@ -474,6 +475,19 @@ function setupAiSearchSection(container, logSummary) {
       });
     });
   }
+
+  var openNestedBtn = document.getElementById('aiSearchOpenNestedBtn');
+  if (openNestedBtn) {
+    openNestedBtn.addEventListener('click', function () {
+      if (!lastPlan) {
+        updateStatus('Generate a query first');
+        return;
+      }
+      window.App = window.App || {};
+      window.App.pendingAiPlanFromAnalyze = { plan: lastPlan };
+      window.location.hash = '#/nested';
+    });
+  }
 }
 
 /** Debounce helper for efficient real-time search */
@@ -521,6 +535,96 @@ function setupTimelineSearch() {
       input.value = '';
       filterTimeline();
       input.blur();
+    }
+  });
+}
+
+var AI_NATURAL_SEARCH_SYSTEM = 'Convert the user search request into search terms for filtering log entries. Logs contain: time, label, level, message, params. Return ONLY a space-separated list of search terms (no quotes, no JSON, no explanation). Example: "payment errors" -> payment error; "timeouts and failures" -> timeout failure. Keep terms short and relevant.';
+
+/** Setup AI Natural Language Search (converts free text to timeline search terms) */
+function setupAiNaturalLanguageSearch() {
+  var aiPlanner = window.App && window.App.aiPlanner;
+  var loadBtn = document.getElementById('aiNaturalLoadModelBtn');
+  var input = document.getElementById('aiNaturalSearchInput');
+  var btn = document.getElementById('aiNaturalSearchBtn');
+  var statusEl = document.getElementById('aiNaturalSearchStatus');
+  if (!input || !btn) return;
+
+  function updateStatus(text) {
+    if (statusEl) statusEl.textContent = text;
+  }
+
+  if (loadBtn && aiPlanner) {
+    loadBtn.addEventListener('click', function () {
+      updateStatus('Loading model...');
+      loadBtn.disabled = true;
+      aiPlanner.loadModel(function (p) {
+        var pct = (p && typeof p.progress === 'number') ? Math.round(p.progress * 100) : null;
+        updateStatus('Loading: ' + (pct != null ? pct + '%' : (p && p.text) || '...'));
+      }).then(function () {
+        updateStatus('Model ready');
+        btn.disabled = false;
+        loadBtn.disabled = false;
+        var aiSearchGenBtn = document.getElementById('aiSearchGenerateBtn');
+        if (aiSearchGenBtn) aiSearchGenBtn.disabled = false;
+      }).catch(function (err) {
+        updateStatus('Error: ' + (err && err.message ? err.message : 'Failed'));
+        loadBtn.disabled = false;
+      });
+    });
+  }
+
+  btn.addEventListener('click', function () {
+    var q = (input.value || '').trim();
+    if (!q) {
+      updateStatus('Enter a search phrase');
+      return;
+    }
+    if (aiPlanner.getStatus() !== 'ready') {
+      updateStatus('Load model first (see AI Search Query Suggestion below)');
+      return;
+    }
+    updateStatus('Interpreting…');
+    btn.disabled = true;
+    aiPlanner.generateText('Search request: "' + q + '". Return only the space-separated search terms.', AI_NATURAL_SEARCH_SYSTEM).then(function (terms) {
+      var cleaned = (terms || '').trim().replace(/\s+/g, ' ').slice(0, 200);
+      console.log('[AI Natural Search] Request:', q, '→ Terms:', cleaned || terms);
+      if (cleaned) {
+        var wrapper = document.getElementById('logTimelineWrapper');
+        var countEl = document.getElementById('timelineSearchCount');
+        if (wrapper) {
+          var items = wrapper.querySelectorAll('.log-timeline-item');
+          var total = items.length;
+          var termsArr = cleaned.toLowerCase().split(/\s+/).filter(Boolean);
+          var visible = 0;
+          items.forEach(function (item) {
+            var searchable = (item.getAttribute('data-searchable') || '').toLowerCase();
+            var match = termsArr.every(function (t) { return searchable.indexOf(t) !== -1; });
+            item.classList.toggle('timeline-search-hidden', !match);
+            if (match) visible++;
+          });
+          if (countEl) {
+            countEl.classList.remove('hidden');
+            countEl.textContent = 'Showing ' + visible + ' of ' + total + ' logs';
+          }
+          updateStatus('Showing ' + visible + ' of ' + total + ' logs');
+        } else {
+          updateStatus('Done');
+        }
+      } else {
+        updateStatus('No terms generated');
+      }
+      btn.disabled = false;
+    }).catch(function (err) {
+      updateStatus('Error: ' + (err && err.message ? err.message : 'Failed'));
+      btn.disabled = false;
+    });
+  });
+
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      btn.click();
     }
   });
 }
@@ -666,6 +770,15 @@ function runAnalysis(container) {
   results += '<input type="text" id="timelineSearchInput" placeholder="Search all logs (time, label, message, level, params)…" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" autocomplete="off" />';
   results += '<span id="timelineSearchCount" class="hidden text-xs text-slate-500 mt-1"></span>';
   results += '</div>';
+  results += '<div class="ai-natural-search-bar mb-2 mt-3 pt-3 border-t border-slate-200">';
+  results += '<label class="block text-xs font-medium text-slate-600 mb-1"><i class="fas fa-robot text-indigo-500 mr-1"></i> AI Natural Language Search</label>';
+  results += '<div class="flex flex-wrap gap-2">';
+  results += '<button type="button" id="aiNaturalLoadModelBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-slate-600 hover:bg-slate-700 text-white px-3 py-2 text-sm font-medium transition shadow-sm whitespace-nowrap"><i class="fas fa-download"></i> Load Model</button>';
+  results += '<input type="text" id="aiNaturalSearchInput" placeholder="e.g. payment errors, timeouts, collect_service failures…" class="flex-1 min-w-[200px] rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" autocomplete="off" />';
+  results += '<button type="button" id="aiNaturalSearchBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 text-sm font-medium transition shadow-sm whitespace-nowrap disabled:opacity-50"><i class="fas fa-magic"></i> AI Search</button>';
+  results += '</div>';
+  results += '<span id="aiNaturalSearchStatus" class="text-xs text-slate-500 mt-1"></span>';
+  results += '</div>';
   results += '<div class="log-timeline-wrapper overflow-y-auto" id="logTimelineWrapper">' + generateTimelineHtml(hits) + '</div>';
   results += '</div></details>';
 
@@ -732,13 +845,14 @@ function runAnalysis(container) {
   results += '<div id="aiSearchResults" class="hidden mt-3 rounded-lg border border-slate-200 bg-white p-3">';
   results += '<div class="flex items-center gap-2 mb-2"><span id="aiSearchConfidence" class="rounded-full bg-indigo-100 text-indigo-800 px-2 py-0.5 text-xs font-medium"></span><span id="aiSearchNotes" class="text-xs text-slate-500"></span></div>';
   results += '<pre id="aiSearchQueryJson" class="text-xs bg-slate-100 p-3 rounded overflow-x-auto max-h-48 overflow-y-auto"></pre>';
-  results += '<div class="mt-2 flex gap-2"><button type="button" id="aiSearchCopyBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 text-xs font-medium transition"><i class="fas fa-copy"></i> Copy OpenSearch JSON</button><a href="#/nested" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 text-xs font-medium transition no-underline"><i class="fas fa-external-link-alt"></i> Open Nested Search</a></div>';
+  results += '<div class="mt-2 flex gap-2"><button type="button" id="aiSearchCopyBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 text-xs font-medium transition"><i class="fas fa-copy"></i> Copy OpenSearch JSON</button><button type="button" id="aiSearchOpenNestedBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 text-xs font-medium transition"><i class="fas fa-external-link-alt"></i> Open Nested Search</button></div>';
   results += '</div></div></details>';
 
   results += '</div>';
   resultsEl.innerHTML = results;
 
   setupTimelineSearch();
+  setupAiNaturalLanguageSearch();
 
   var logSummary = buildLogSummaryForAI(hits, uniqueDetails, occurrences, sortedLabels, totalHits);
   setupAiSearchSection(container, logSummary);

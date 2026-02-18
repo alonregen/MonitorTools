@@ -136,6 +136,30 @@
 
   // ─── Generation ───────────────────────────────────────────────
 
+  /** Simple text generation (for natural language search, etc.). Returns raw string. */
+  function generateText(userMessage, systemPrompt) {
+    if (!engine) return Promise.reject(new Error('Model not loaded'));
+    if (status === 'generating') return Promise.reject(new Error('Already generating'));
+
+    status = 'generating';
+    var messages = [
+      { role: 'system', content: systemPrompt || 'You are a helpful assistant. Reply with only the requested output, no extra text.' },
+      { role: 'user', content: userMessage }
+    ];
+
+    return engine.chat.completions.create({
+      messages: messages,
+      temperature: 0.1,
+      max_tokens: 256
+    }).then(function (reply) {
+      status = 'ready';
+      return (reply.choices[0] && reply.choices[0].message && reply.choices[0].message.content) || '';
+    }).catch(function (err) {
+      status = 'ready';
+      throw err;
+    });
+  }
+
   function generatePlan(userRequest, currentState) {
     if (!engine) return Promise.reject(new Error('Model not loaded'));
     if (status === 'generating') return Promise.reject(new Error('Already generating'));
@@ -328,6 +352,7 @@
     getStatus: getStatus,
     getLastError: getLastError,
     loadModel: loadModel,
+    generateText: generateText,
     generatePlan: generatePlan,
     validatePlan: validatePlan,
     buildAggregationsFromPlan: buildAggregationsFromPlan,
