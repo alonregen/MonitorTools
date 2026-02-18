@@ -157,6 +157,46 @@
 }
 .analyze-section-timeline .log-timeline-wrapper {
   max-height: 280px;
+}
+
+/* Timeline fullscreen overlay */
+#timelineFullscreenOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+#timelineFullscreenOverlay .timeline-fs-header {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  background: #eef2ff;
+  border-bottom: 1px solid #c7d2fe;
+}
+#timelineFullscreenOverlay .timeline-fs-content {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  padding: 1rem 1.5rem;
+  min-height: 0;
+}
+#timelineFullscreenOverlay .timeline-fs-content > div {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+#timelineFullscreenOverlay .log-timeline-wrapper {
+  max-height: none !important;
+  flex: 1;
+  min-height: 0;
   padding: 0.125rem 0;
   -webkit-overflow-scrolling: touch;
 }

@@ -602,6 +602,88 @@ function setupTimelineSearch() {
   });
 }
 
+/** Setup timeline fullscreen expand/collapse */
+function setupTimelineFullscreen() {
+  var expandBtn = document.getElementById('timelineExpandBtn');
+  var contentEl = document.getElementById('timelineSectionContent');
+  var detailsEl = document.querySelector('.analyze-section-timeline');
+  if (!expandBtn || !contentEl || !detailsEl) return;
+
+  var overlay = null;
+
+  var escapeHandler = null;
+
+  function createOverlay() {
+    if (overlay) return overlay;
+    overlay = document.createElement('div');
+    overlay.id = 'timelineFullscreenOverlay';
+    overlay.className = 'hidden';
+    overlay.setAttribute('tabindex', '-1');
+    overlay.innerHTML = '<div class="timeline-fs-header">' +
+      '<h3 class="text-lg font-semibold text-indigo-900"><i class="fas fa-stream mr-2"></i> Log flow timeline</h3>' +
+      '<button type="button" id="timelineCloseFsBtn" class="inline-flex items-center gap-2 rounded-lg bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 text-sm font-medium transition" title="Exit full screen"><i class="fas fa-compress"></i> Exit full screen</button>' +
+      '</div>' +
+      '<div class="timeline-fs-content"></div>';
+    document.body.appendChild(overlay);
+
+    var closeBtn = overlay.querySelector('#timelineCloseFsBtn');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', function (e) {
+        e.preventDefault();
+        exitFullscreen();
+      });
+    }
+    return overlay;
+  }
+
+  function enterFullscreen() {
+    createOverlay();
+    var contentSlot = overlay.querySelector('.timeline-fs-content');
+    if (contentSlot && contentEl && contentEl.parentNode) {
+      contentSlot.appendChild(contentEl);
+    }
+    overlay.classList.remove('hidden');
+    overlay.focus();
+    expandBtn.innerHTML = '<i class="fas fa-compress"></i>';
+    expandBtn.title = 'Currently in full screen (click Exit in overlay)';
+
+    escapeHandler = function (e) {
+      if (e.key === 'Escape') {
+        exitFullscreen();
+        document.removeEventListener('keydown', escapeHandler);
+      }
+    };
+    document.addEventListener('keydown', escapeHandler);
+  }
+
+  function exitFullscreen() {
+    if (!overlay) return;
+    if (escapeHandler) {
+      document.removeEventListener('keydown', escapeHandler);
+      escapeHandler = null;
+    }
+    var contentSlot = overlay.querySelector('.timeline-fs-content');
+    if (contentSlot && contentEl && detailsEl) {
+      detailsEl.appendChild(contentEl);
+    }
+    overlay.classList.add('hidden');
+    if (expandBtn) {
+      expandBtn.innerHTML = '<i class="fas fa-expand"></i>';
+      expandBtn.title = 'Expand to full screen';
+    }
+  }
+
+  expandBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    e.preventDefault();
+    if (overlay && !overlay.classList.contains('hidden')) {
+      exitFullscreen();
+    } else {
+      enterFullscreen();
+    }
+  });
+}
+
 var AI_NATURAL_SEARCH_SYSTEM = 'Convert the user search request into search terms for filtering log entries. Logs contain: time, label, level, message, params. Return ONLY a space-separated list of search terms (no quotes, no JSON, no explanation). Example: "payment errors" -> payment error; "timeouts and failures" -> timeout failure. Keep terms short and relevant.';
 
 /** Setup AI Natural Language Search (converts free text to timeline search terms) */
@@ -935,8 +1017,12 @@ function runAnalysis(container) {
   results += '</div>';
 
   results += '<details class="analyze-section analyze-section-timeline mb-3 rounded-xl border border-slate-200 shadow-sm overflow-hidden" open>';
-  results += '<summary class="analyze-section-summary cursor-pointer px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 font-semibold text-slate-800 flex items-center gap-2"><i class="fas fa-stream"></i> Log flow timeline</summary>';
-  results += '<div class="p-2 border-t border-slate-200 bg-slate-50/50">';
+  results += '<summary class="analyze-section-summary cursor-pointer px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 font-semibold text-slate-800 flex items-center gap-2">';
+  results += '<i class="fas fa-stream"></i> Log flow timeline';
+  results += '<span class="flex-1"></span>';
+  results += '<button type="button" id="timelineExpandBtn" class="timeline-expand-btn shrink-0 p-1.5 rounded-lg hover:bg-indigo-200/80 text-indigo-700 transition" title="Expand to full screen"><i class="fas fa-expand"></i></button>';
+  results += '</summary>';
+  results += '<div id="timelineSectionContent" class="p-2 border-t border-slate-200 bg-slate-50/50">';
   results += '<div class="timeline-header flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">';
   results += '<span class="rounded bg-indigo-100 border border-indigo-200 px-2 py-1 text-slate-800 text-sm font-medium"><i class="fas fa-tachometer-alt mr-1"></i>Total Hits: ' + totalHits + '</span>';
   results += '<span class="text-xs text-slate-500">All logs in chronological order. <span class="text-red-500 font-medium">Red</span> = error, <span class="text-amber-500 font-medium">Amber</span> = warning, <span class="text-sky-500 font-medium">Blue</span> = adjacent to error/warning. Click any entry for full log.</span>';
@@ -1028,6 +1114,7 @@ function runAnalysis(container) {
   resultsEl.innerHTML = results;
 
   setupTimelineSearch();
+  setupTimelineFullscreen();
   setupAiNaturalLanguageSearch();
 
   var logSummary = buildLogSummaryForAI(hits, uniqueDetails, occurrences, sortedLabels, totalHits);
