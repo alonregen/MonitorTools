@@ -537,16 +537,31 @@
   to { transform: rotate(360deg); }
 }
 
-/* AI thinking – moving robot icon */
-.ai-thinking-robot {
-  display: inline-block;
+/* AI thinking – moving robot + small spinner */
+.ai-thinking-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   margin-right: 0.25rem;
   vertical-align: middle;
+}
+.ai-thinking-robot {
+  display: inline-block;
   font-size: 0.875em;
+  color: #6366f1;
   animation: ai-robot-think 1.2s ease-in-out infinite;
 }
 .ai-thinking-robot i {
   display: block;
+}
+.ai-thinking-spinner-sm {
+  display: inline-block;
+  width: 0.5em;
+  height: 0.5em;
+  border: 1.5px solid #6366f1;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: ai-spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 @keyframes ai-robot-think {
   0%, 100% { transform: translateY(0) scale(1); opacity: 1; }

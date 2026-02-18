@@ -701,7 +701,7 @@ function setupAiNaturalLanguageSearch() {
   function updateStatus(text, showSpinner) {
     if (!statusEl) return;
     if (showSpinner) {
-      statusEl.innerHTML = '<span class="ai-thinking-robot"><i class="fas fa-robot"></i></span><span>' + (text || '') + '</span>';
+      statusEl.innerHTML = '<span class="ai-thinking-wrap"><span class="ai-thinking-robot"><i class="fas fa-robot"></i></span><span class="ai-thinking-spinner-sm"></span></span><span>' + (text || '') + '</span>';
     } else {
       statusEl.textContent = text || '';
     }
@@ -831,7 +831,7 @@ function setupAiLogQaSection(logContext) {
   function updateStatus(text, showSpinner) {
     if (!statusEl) return;
     if (showSpinner) {
-      statusEl.innerHTML = '<span class="ai-thinking-robot"><i class="fas fa-robot"></i></span><span>' + (text || '') + '</span>';
+      statusEl.innerHTML = '<span class="ai-thinking-wrap"><span class="ai-thinking-robot"><i class="fas fa-robot"></i></span><span class="ai-thinking-spinner-sm"></span></span><span>' + (text || '') + '</span>';
     } else {
       statusEl.textContent = text || '';
     }
