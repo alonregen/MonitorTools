@@ -521,6 +521,38 @@
   transform: none;
 }
 
+/* AI thinking/spinner animation – smooth rotation */
+.ai-thinking-spinner {
+  display: inline-block;
+  width: 0.875em;
+  height: 0.875em;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: ai-spin 1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  vertical-align: middle;
+  margin-right: 0.25rem;
+}
+@keyframes ai-spin {
+  to { transform: rotate(360deg); }
+}
+
+/* AI thinking – moving robot icon */
+.ai-thinking-robot {
+  display: inline-block;
+  margin-right: 0.25rem;
+  vertical-align: middle;
+  font-size: 0.875em;
+  animation: ai-robot-think 1.2s ease-in-out infinite;
+}
+.ai-thinking-robot i {
+  display: block;
+}
+@keyframes ai-robot-think {
+  0%, 100% { transform: translateY(0) scale(1); opacity: 1; }
+  50% { transform: translateY(-2px) scale(1.05); opacity: 0.9; }
+}
+
 /* Search highlight in timeline */
 .search-highlight {
   background-color: #fef08a;

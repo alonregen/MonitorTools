@@ -698,8 +698,13 @@ function setupAiNaturalLanguageSearch() {
   var statusEl = document.getElementById('aiNaturalSearchStatus');
   if (!input || !btn) return;
 
-  function updateStatus(text) {
-    if (statusEl) statusEl.textContent = text;
+  function updateStatus(text, showSpinner) {
+    if (!statusEl) return;
+    if (showSpinner) {
+      statusEl.innerHTML = '<span class="ai-thinking-robot"><i class="fas fa-robot"></i></span><span>' + (text || '') + '</span>';
+    } else {
+      statusEl.textContent = text || '';
+    }
   }
 
   if (loadBtn && aiPlanner) {
@@ -736,7 +741,7 @@ function setupAiNaturalLanguageSearch() {
       updateStatus('Load model first (see AI Search Query Suggestion below)');
       return;
     }
-    updateStatus('Interpreting…');
+    updateStatus('Interpreting…', true);
     btn.disabled = true;
     aiPlanner.generateText('Search request: "' + q + '". Return only the space-separated search terms.', AI_NATURAL_SEARCH_SYSTEM).then(function (terms) {
       var cleaned = (terms || '').trim().replace(/\s+/g, ' ').slice(0, 200);
@@ -823,8 +828,13 @@ function setupAiLogQaSection(logContext) {
   var resultDiv = document.getElementById('aiLogQaResult');
   if (!input || !btn) return;
 
-  function updateStatus(text) {
-    if (statusEl) statusEl.textContent = text;
+  function updateStatus(text, showSpinner) {
+    if (!statusEl) return;
+    if (showSpinner) {
+      statusEl.innerHTML = '<span class="ai-thinking-robot"><i class="fas fa-robot"></i></span><span>' + (text || '') + '</span>';
+    } else {
+      statusEl.textContent = text || '';
+    }
   }
 
   if (loadBtn && aiPlanner) {
@@ -862,7 +872,7 @@ function setupAiLogQaSection(logContext) {
       updateStatus('Load model first (see AI Natural Language Search or AI Search Query Suggestion)');
       return;
     }
-    updateStatus('Searching in logs…');
+    updateStatus('Searching in logs…', true);
     btn.disabled = true;
     resultDiv.classList.add('hidden');
     var userMsg = 'Log data:\n\n' + logContext + '\n\n---\n\nUser question: ' + q;

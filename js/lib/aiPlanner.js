@@ -37,6 +37,13 @@
   function getStatus() { return status; }
   function getLastError() { return lastError; }
 
+  /** Stop the current generation. Call when user clicks Stop. */
+  function stopGeneration() {
+    if (engine && typeof engine.interruptGenerate === 'function') {
+      engine.interruptGenerate();
+    }
+  }
+
   // ─── Model Loading ────────────────────────────────────────────
 
   function loadModel(progressCallback) {
@@ -352,6 +359,7 @@
     getStatus: getStatus,
     getLastError: getLastError,
     loadModel: loadModel,
+    stopGeneration: stopGeneration,
     generateText: generateText,
     generatePlan: generatePlan,
     validatePlan: validatePlan,

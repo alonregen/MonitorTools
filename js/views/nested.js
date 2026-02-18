@@ -487,9 +487,10 @@
     + '    <div class="ai-panel">'
 
     // Status bar
-    + '      <div class="flex items-center gap-3 mb-4">'
+    + '      <div class="flex items-center gap-3 mb-4 flex-wrap">'
     + '        <span id="aiStatusBadge" class="ai-status-badge ai-status-idle"><i class="fas fa-circle text-xs mr-1"></i> <span id="aiStatusText">Not loaded</span></span>'
     + '        <span class="text-xs text-slate-400" id="aiModelLabel">' + 'Llama 3.1 8B Instruct (~4.5 GB)' + '</span>'
+    + '        <button type="button" id="aiClearBtn" class="ml-auto inline-flex items-center gap-1.5 rounded-lg bg-slate-500 hover:bg-slate-600 text-white px-3 py-1.5 text-xs font-medium transition"><i class="fas fa-eraser"></i> Clear</button>'
     + '      </div>'
 
     // Progress bar (hidden by default)
@@ -508,9 +509,10 @@
     + '        <button type="button" id="aiLoadModelBtn" class="ai-load-model-btn ' + btnPrimary + ' mb-4"><i class="fas fa-download"></i> Load AI Model</button>'
     + '        <label class="' + labelCls + '"><i class="fas fa-comment-dots mr-1"></i> Describe what you want to find:</label>'
     + '        <textarea class="' + inputCls + ' mb-3 resize-none" id="aiRequestInput" rows="4">Find all payment failures from collect_service in the last 10 minutes, exclude insufficient balance errors</textarea>'
-    + '        <div class="flex gap-2 mb-3">'
+    + '        <div class="flex gap-2 mb-3 items-center">'
     + '          <button type="button" id="aiGenerateBtn" class="' + btnPrimary + '" disabled><i class="fas fa-bolt"></i> Generate</button>'
     + '          <button type="button" id="aiGenerateDslBtn" class="' + btnPrimary + '" disabled><i class="fas fa-code"></i> Generate DSL</button>'
+    + '          <button type="button" id="aiStopBtn" class="hidden inline-flex gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm font-medium transition disabled:opacity-50"><i class="fas fa-stop"></i> Stop</button>'
     + '        </div>'
     + '      </div>'
 
@@ -1177,8 +1179,33 @@
     var loadBtn     = byId('aiLoadModelBtn', r);
     var genBtn      = byId('aiGenerateBtn', r);
     var genDslBtn   = byId('aiGenerateDslBtn', r);
+    var stopBtn     = byId('aiStopBtn', r);
     var applyBtn   = byId('aiApplyBtn', r);
+    var clearBtn   = byId('aiClearBtn', r);
     var requestEl  = byId('aiRequestInput', r);
+
+    function resetAiGenerateUI() {
+      if (stopBtn) stopBtn.classList.add('hidden');
+      if (genBtn) { genBtn.disabled = false; genBtn.innerHTML = '<i class="fas fa-bolt"></i> Generate'; }
+      if (genDslBtn) { genDslBtn.disabled = false; genDslBtn.innerHTML = '<i class="fas fa-code"></i> Generate DSL'; }
+    }
+
+    // Clear
+    if (clearBtn) {
+      clearBtn.addEventListener('click', function () {
+        lastAiPlan = null;
+        var resultsPanel = byId('aiResultsPanel', r);
+        var dslPanel = byId('aiDslPanel', r);
+        var dslOutput = byId('aiDslOutput', r);
+        var dslEdit = byId('aiDslOutputEdit', r);
+        if (resultsPanel) resultsPanel.classList.add('hidden');
+        if (dslPanel) dslPanel.classList.add('hidden');
+        if (dslOutput) dslOutput.classList.remove('hidden');
+        if (dslEdit) dslEdit.classList.add('hidden');
+        var status = planner.getStatus ? planner.getStatus() : 'idle';
+        updateAiStatusBadge(r, status === 'ready' ? 'ready' : 'idle', status === 'ready' ? 'Ready' : 'Not loaded');
+      });
+    }
 
     // Load Model
     if (loadBtn) {
@@ -1215,6 +1242,13 @@
       });
     }
 
+    // Stop
+    if (stopBtn && planner.stopGeneration) {
+      stopBtn.addEventListener('click', function () {
+        planner.stopGeneration();
+      });
+    }
+
     // Generate
     if (genBtn) {
       genBtn.addEventListener('click', function () {
@@ -1223,20 +1257,19 @@
 
         genBtn.disabled = true;
         genBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+        if (stopBtn) stopBtn.classList.remove('hidden');
         updateAiStatusBadge(r, 'generating', 'Generating...');
 
         var tfEl = byId('alertTimeFrame', r);
         var currentState = { timeframe: tfEl ? tfEl.value : 'now-1h' };
 
         planner.generatePlan(userRequest, currentState).then(function (result) {
+          resetAiGenerateUI();
           updateAiStatusBadge(r, 'ready', 'Ready');
-          genBtn.disabled = false;
-          genBtn.innerHTML = '<i class="fas fa-bolt"></i> Generate';
           showAiResults(r, result, container);
         }).catch(function (err) {
+          resetAiGenerateUI();
           updateAiStatusBadge(r, 'ready', 'Ready');
-          genBtn.disabled = false;
-          genBtn.innerHTML = '<i class="fas fa-bolt"></i> Generate';
           showAiError(r, err.message || String(err));
         });
       });
@@ -1257,15 +1290,15 @@
 
         genDslBtn.disabled = true;
         genDslBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+        if (stopBtn) stopBtn.classList.remove('hidden');
         updateAiStatusBadge(r, 'generating', 'Generating DSL...');
 
         var tfEl = byId('alertTimeFrame', r);
         var currentState = { timeframe: tfEl ? tfEl.value : 'now-1h' };
 
         planner.generatePlan(userRequest, currentState).then(function (result) {
+          resetAiGenerateUI();
           updateAiStatusBadge(r, 'ready', 'Ready');
-          genDslBtn.disabled = false;
-          genDslBtn.innerHTML = '<i class="fas fa-code"></i> Generate DSL';
           var dslPanel = byId('aiDslPanel', r);
           var dslOutput = byId('aiDslOutput', r);
           if (dslPanel) dslPanel.classList.remove('hidden');
@@ -1292,9 +1325,8 @@
             if (dslEdit) dslEdit.value = content;
           }
         }).catch(function (err) {
+          resetAiGenerateUI();
           updateAiStatusBadge(r, 'ready', 'Ready');
-          genDslBtn.disabled = false;
-          genDslBtn.innerHTML = '<i class="fas fa-code"></i> Generate DSL';
           var dslPanel = byId('aiDslPanel', r);
           var dslOutput = byId('aiDslOutput', r);
           if (dslPanel) dslPanel.classList.remove('hidden');
