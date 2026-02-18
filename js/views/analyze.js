@@ -349,6 +349,133 @@ function generateTimelineHtml(hits) {
   return html;
 }
 
+/** Build a compact summary of logs for AI prompt (used by AI Search section) */
+function buildLogSummaryForAI(hits, uniqueDetails, occurrences, sortedLabels, totalHits) {
+  var parts = [];
+  parts.push('Total log entries: ' + totalHits);
+  var errorCount = 0, warnCount = 0;
+  hits.forEach(function (h) {
+    var l = (h._source.level || '').toLowerCase();
+    if (l === 'error') errorCount++;
+    else if (l === 'warning') warnCount++;
+  });
+  if (errorCount > 0) parts.push('Errors: ' + errorCount);
+  if (warnCount > 0) parts.push('Warnings: ' + warnCount);
+  if (sortedLabels && sortedLabels.length > 0) {
+    var topLabels = sortedLabels.slice(0, 8).map(function (e) { return e[0] + ' (' + e[1] + ')'; }).join(', ');
+    parts.push('Labels: ' + topLabels);
+  }
+  if (uniqueDetails && Object.keys(uniqueDetails).length > 0) {
+    var detailStrs = [];
+    Object.keys(uniqueDetails).forEach(function (k) {
+      if (uniqueDetails[k]) detailStrs.push(k + ': ' + String(uniqueDetails[k]).slice(0, 80));
+    });
+    parts.push('Key details: ' + detailStrs.join('; '));
+  }
+  if (occurrences && occurrences.length > 0) {
+    var sampleMsgs = occurrences.slice(0, 3).map(function (o) { return (o.message || '').slice(0, 100); }).filter(Boolean);
+    if (sampleMsgs.length > 0) parts.push('Sample error messages: ' + sampleMsgs.join(' | '));
+  }
+  return parts.join('. ');
+}
+
+/** Setup AI Search section event handlers (called after runAnalysis injects HTML) */
+function setupAiSearchSection(container, logSummary) {
+  var aiPlanner = window.App && window.App.aiPlanner;
+  var queryCompiler = window.App && window.App.queryCompiler;
+  var dom = window.App && window.App.dom;
+  if (!aiPlanner || !queryCompiler) return;
+
+  var loadBtn = document.getElementById('aiSearchLoadModelBtn');
+  var genBtn = document.getElementById('aiSearchGenerateBtn');
+  var statusEl = document.getElementById('aiSearchStatus');
+  var resultsDiv = document.getElementById('aiSearchResults');
+  var confidenceEl = document.getElementById('aiSearchConfidence');
+  var notesEl = document.getElementById('aiSearchNotes');
+  var queryJsonEl = document.getElementById('aiSearchQueryJson');
+  var copyBtn = document.getElementById('aiSearchCopyBtn');
+
+  function updateStatus(text) {
+    if (statusEl) statusEl.textContent = text;
+  }
+
+  function setGenerateEnabled(enabled) {
+    if (genBtn) genBtn.disabled = !enabled;
+  }
+
+  var lastPlan = null;
+  var lastDsl = null;
+
+  if (loadBtn) {
+    loadBtn.addEventListener('click', function () {
+      updateStatus('Loading model...');
+      loadBtn.disabled = true;
+      aiPlanner.loadModel(function (p) {
+        updateStatus('Loading: ' + (p ? Math.round(p * 100) + '%' : '...'));
+      }).then(function () {
+        updateStatus('Model ready');
+        setGenerateEnabled(true);
+        loadBtn.disabled = false;
+      }).catch(function (err) {
+        updateStatus('Error: ' + (err && err.message ? err.message : 'Failed'));
+        loadBtn.disabled = false;
+      });
+    });
+  }
+
+  if (genBtn) {
+    genBtn.addEventListener('click', function () {
+      if (aiPlanner.getStatus() !== 'ready') {
+        updateStatus('Load model first');
+        return;
+      }
+      var prompt = 'Based on these logs: ' + logSummary + '. Suggest an OpenSearch alert query to find similar logs.';
+      updateStatus('Generating...');
+      genBtn.disabled = true;
+      aiPlanner.generatePlan(prompt, { timeframe: 'now-1h' }).then(function (res) {
+        var v = res.plan;
+        if (!v || !v.valid || !v.plan) {
+          updateStatus('Invalid plan');
+          setGenerateEnabled(true);
+          return;
+        }
+        lastPlan = v.plan;
+        var conditions = [];
+        (v.plan.must || []).forEach(function (c) {
+          conditions.push({ clause: 'must', field: c.field, operator: c.op, value: c.value });
+        });
+        (v.plan.must_not || []).forEach(function (c) {
+          conditions.push({ clause: 'must_not', field: c.field, operator: c.op, value: c.value });
+        });
+        var aggs = aiPlanner.buildAggregationsFromPlan(v.plan.aggs);
+        lastDsl = queryCompiler.compile(conditions, v.plan.timeframe || 'now-1h', aggs);
+        if (confidenceEl) confidenceEl.textContent = 'Confidence: ' + Math.round((v.plan.confidence || 0) * 100) + '%';
+        if (notesEl) notesEl.textContent = (v.plan.notes || []).join(' ');
+        if (queryJsonEl) queryJsonEl.textContent = JSON.stringify(lastDsl, null, 2);
+        if (resultsDiv) resultsDiv.classList.remove('hidden');
+        updateStatus('Done');
+        setGenerateEnabled(true);
+      }).catch(function (err) {
+        updateStatus('Error: ' + (err && err.message ? err.message : 'Failed'));
+        setGenerateEnabled(true);
+      });
+    });
+  }
+
+  if (copyBtn && dom) {
+    copyBtn.addEventListener('click', function () {
+      if (!lastDsl) return;
+      dom.copyToClipboard(JSON.stringify(lastDsl, null, 2)).then(function (ok) {
+        if (ok && copyBtn) {
+          var orig = copyBtn.innerHTML;
+          copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+          setTimeout(function () { if (copyBtn) copyBtn.innerHTML = orig; }, 2000);
+        }
+      });
+    });
+  }
+}
+
 /** Debounce helper for efficient real-time search */
 function debounce(fn, ms) {
   var t;
@@ -408,9 +535,29 @@ function generateConnectorsServiceHtml(details) {
   return html;
 }
 
-function generateEmailContent(container, uniqueDetails) {
+function generateEmailContent(container, uniqueDetails, hits, occurrences, connectorsDetails, totalHits) {
   var fields = getVisibleFields(uniqueDetails);
-  let emailBody = 'Dear Team,\n\nPlease provide help regarding the following details:\n';
+  let emailBody = 'Dear Team,\n\n';
+  emailBody += 'Please provide help regarding the following investigation:\n\n';
+  
+  // Summary section
+  emailBody += '=== INVESTIGATION SUMMARY ===\n';
+  emailBody += 'Total Log Entries: ' + totalHits + '\n';
+  
+  // Count errors and warnings
+  let errorCount = 0;
+  let warningCount = 0;
+  hits.forEach(hit => {
+    const level = (hit._source.level || '').toLowerCase();
+    if (level === 'error') errorCount++;
+    else if (level === 'warning') warningCount++;
+  });
+  if (errorCount > 0) emailBody += 'Errors Found: ' + errorCount + '\n';
+  if (warningCount > 0) emailBody += 'Warnings Found: ' + warningCount + '\n';
+  emailBody += '\n';
+  
+  // Important details section
+  emailBody += '=== IMPORTANT DETAILS ===\n';
   if (uniqueDetails.gateway) emailBody += '- Gateway: ' + uniqueDetails.gateway + '\n';
   fields.forEach(function (field) {
     if (field === 'gateway' || field === 'quarantined_item_id') return;
@@ -419,11 +566,51 @@ function generateEmailContent(container, uniqueDetails) {
     }
   });
   if (uniqueDetails.quarantined_item_id) emailBody += '- Quarantined Item ID: ' + uniqueDetails.quarantined_item_id + '\n';
-  emailBody += '\nThank you for your assistance!';
+  emailBody += '\n';
+  
+  // Errors and warnings section
+  if (occurrences && occurrences.length > 0) {
+    emailBody += '=== ERRORS & WARNINGS ===\n';
+    occurrences.forEach(function(occ, idx) {
+      emailBody += '\nOccurrence ' + (idx + 1) + ':\n';
+      emailBody += '- Level: ' + (occ.level || 'N/A') + '\n';
+      emailBody += '- Label: ' + (occ.label || 'N/A') + '\n';
+      emailBody += '- Time: ' + (occ.time || 'N/A') + '\n';
+      emailBody += '- Message: ' + (occ.message || 'N/A') + '\n';
+      if (occ.params && occ.params !== 'N/A') {
+        emailBody += '- Params: ' + occ.params + '\n';
+      }
+    });
+    emailBody += '\n';
+  }
+  
+  // Connectors service details section
+  if (connectorsDetails && connectorsDetails.length > 0) {
+    emailBody += '=== CONNECTORS SERVICE DETAILS ===\n';
+    connectorsDetails.forEach(function(conn, idx) {
+      emailBody += '\n' + conn.type.charAt(0).toUpperCase() + conn.type.slice(1) + ' ' + (idx + 1) + ':\n';
+      emailBody += '- Label: ' + (conn.label || 'N/A') + '\n';
+      emailBody += '- Level: ' + (conn.level || 'N/A') + '\n';
+      emailBody += '- Time: ' + (conn.time || 'N/A') + '\n';
+      emailBody += '- Message: ' + (conn.message || 'N/A') + '\n';
+      if (conn.params && conn.params !== 'N/A') {
+        emailBody += '- ' + conn.params + '\n';
+      }
+    });
+    emailBody += '\n';
+  }
+  
+  // Closing
+  emailBody += '=== REQUEST ===\n';
+  emailBody += 'Please investigate the above details and provide assistance.\n';
+  emailBody += 'If you need any additional information from the logs, please let me know.\n\n';
+  emailBody += 'Thank you for your assistance!\n\n';
+  emailBody += '---\n';
+  emailBody += 'Note: If this email is not relevant to your investigation, please feel free to skip it.\n';
 
   const emailOutputEl = document.getElementById('emailOutput');
   if (!emailOutputEl) return;
-  emailOutputEl.innerHTML = '<div class="email-content"><strong class="text-slate-800">Email to Team:</strong><pre id="emailContent" class="border border-slate-300 rounded-lg p-4 bg-slate-50 mt-2 text-sm whitespace-pre-wrap">' + dom.escapeHtml(emailBody) + '</pre><button type="button" id="copyEmailBtn" class="mt-2 rounded-lg bg-green-600 hover:bg-green-700 text-white px-4 py-2 text-sm font-medium">Copy to Clipboard</button><button type="button" id="clearEmailBtn" class="mt-2 ml-2 rounded-lg bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm font-medium">Clear</button><div id="copyFeedback" class="mt-2 text-green-600 text-sm hidden">Email content copied to clipboard!</div></div>';
+  emailOutputEl.innerHTML = '<div class="email-content"><strong class="text-slate-800">Email to Team:</strong><textarea id="emailContent" class="w-full border border-slate-300 rounded-lg p-4 bg-slate-50 mt-2 text-sm font-mono resize-y min-h-[300px]" rows="20">' + dom.escapeHtml(emailBody) + '</textarea><div class="mt-3 flex flex-wrap gap-2"><button type="button" id="copyEmailBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white px-4 py-2 text-sm font-medium transition shadow-sm"><i class="fas fa-copy"></i> Copy to Clipboard</button><button type="button" id="clearEmailBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm font-medium transition shadow-sm"><i class="fas fa-trash-alt"></i> Clear</button></div><div id="copyFeedback" class="mt-2 text-green-600 text-sm hidden"><i class="fas fa-check-circle mr-1"></i>Email content copied to clipboard!</div></div>';
   emailOutputEl.classList.remove('hidden');
 
   const copyBtn = document.getElementById('copyEmailBtn');
@@ -431,11 +618,14 @@ function generateEmailContent(container, uniqueDetails) {
   const feedback = document.getElementById('copyFeedback');
   if (copyBtn) {
     copyBtn.addEventListener('click', function () {
-      const pre = document.getElementById('emailContent');
-      const text = pre ? pre.innerText : '';
+      const textarea = document.getElementById('emailContent');
+      const text = textarea ? textarea.value : '';
       dom.copyToClipboard(text).then(ok => {
-        if (feedback) feedback.style.display = ok ? 'block' : 'none';
-        setTimeout(() => { if (feedback) feedback.style.display = 'none'; }, 3000);
+        if (feedback) {
+          feedback.classList.remove('hidden');
+          feedback.style.display = ok ? 'block' : 'none';
+          setTimeout(() => { if (feedback) feedback.classList.add('hidden'); }, 3000);
+        }
       });
     });
   }
@@ -486,9 +676,11 @@ function runAnalysis(container) {
 
   let occurrencesHtml = '';
   let occurrenceIndex = 0;
+  const occurrences = [];
   hits.forEach(hit => {
     const source = hit._source;
     if (source.level === 'error' || source.level === 'warning') {
+      occurrences.push(extractDetails(hit));
       occurrencesHtml += generateOccurrenceHtml(occurrenceIndex++, extractDetails(hit), hit);
     }
   });
@@ -528,10 +720,28 @@ function runAnalysis(container) {
   results += '<summary class="analyze-section-summary cursor-pointer px-4 py-2.5 bg-slate-50 hover:bg-slate-100 font-semibold text-slate-800 flex items-center gap-2"><i class="fas fa-exclamation-triangle text-red-600"></i> Errors &amp; warnings' + (occurrenceIndex > 0 ? ' <span class="rounded-full bg-red-100 text-red-800 text-xs px-2 py-0.5">' + occurrenceIndex + '</span>' : '') + '</summary>';
   results += '<div class="p-3 border-t border-slate-200 bg-slate-50/30 errors-section-body">' + (occurrencesHtml || '<div class="rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-slate-800 text-sm"><i class="fas fa-check-circle mr-2 text-green-600"></i>No significant issues detected.</div>') + '</div></details>';
 
+  results += '<details class="analyze-section analyze-section-ai-search mb-3 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden" id="aiSearchSection">';
+  results += '<summary class="analyze-section-summary cursor-pointer px-4 py-2.5 bg-indigo-50 hover:bg-indigo-100 font-semibold text-slate-800 flex items-center gap-2"><i class="fas fa-robot text-indigo-600"></i> AI Search Query Suggestion</summary>';
+  results += '<div class="p-3 border-t border-slate-200 bg-slate-50/30">';
+  results += '<p class="text-sm text-slate-600 mb-3">Based on the analyzed logs, generate an OpenSearch alert query to find similar logs. Uses browser LLM (no backend).</p>';
+  results += '<div class="flex flex-wrap items-center gap-2 mb-3">';
+  results += '<button type="button" id="aiSearchLoadModelBtn" class="inline-flex items-center gap-2 rounded-lg bg-slate-600 hover:bg-slate-700 text-white px-4 py-2 text-sm font-medium transition shadow-sm"><i class="fas fa-download"></i> Load Model</button>';
+  results += '<button type="button" id="aiSearchGenerateBtn" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 text-sm font-medium transition shadow-sm disabled:opacity-50 disabled:cursor-not-allowed" disabled><i class="fas fa-magic"></i> Generate Query</button>';
+  results += '<span id="aiSearchStatus" class="text-xs text-slate-500"></span>';
+  results += '</div>';
+  results += '<div id="aiSearchResults" class="hidden mt-3 rounded-lg border border-slate-200 bg-white p-3">';
+  results += '<div class="flex items-center gap-2 mb-2"><span id="aiSearchConfidence" class="rounded-full bg-indigo-100 text-indigo-800 px-2 py-0.5 text-xs font-medium"></span><span id="aiSearchNotes" class="text-xs text-slate-500"></span></div>';
+  results += '<pre id="aiSearchQueryJson" class="text-xs bg-slate-100 p-3 rounded overflow-x-auto max-h-48 overflow-y-auto"></pre>';
+  results += '<div class="mt-2 flex gap-2"><button type="button" id="aiSearchCopyBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 text-xs font-medium transition"><i class="fas fa-copy"></i> Copy OpenSearch JSON</button><a href="#/nested" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 text-xs font-medium transition no-underline"><i class="fas fa-external-link-alt"></i> Open Nested Search</a></div>';
+  results += '</div></div></details>';
+
   results += '</div>';
   resultsEl.innerHTML = results;
 
   setupTimelineSearch();
+
+  var logSummary = buildLogSummaryForAI(hits, uniqueDetails, occurrences, sortedLabels, totalHits);
+  setupAiSearchSection(container, logSummary);
 
   const placeholder = document.getElementById('canvasPlaceholder');
   if (placeholder) placeholder.innerHTML = '';
@@ -599,7 +809,7 @@ function runAnalysis(container) {
     });
   }
 
-  generateEmailContent(container, uniqueDetails);
+  generateEmailContent(container, uniqueDetails, hits, occurrences, connectorsDetails, totalHits);
   
   // Attach copy button handler for details table
   const copyDetailsBtn = document.getElementById('copyDetailsBtn');

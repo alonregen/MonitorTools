@@ -250,6 +250,10 @@
     + '        <input type="radio" name="queryMethod" id="jsonQueryRadio" value="json" class="rounded-full border-slate-300 text-primary focus:ring-primary">'
     + '        <span class="text-sm font-medium text-slate-700">By JSON</span>'
     + '      </label>'
+    + '      <label class="flex items-center gap-2 cursor-pointer">'
+    + '        <input type="radio" name="queryMethod" id="aiQueryRadio" value="ai" class="rounded-full border-slate-300 text-primary focus:ring-primary">'
+    + '        <span class="text-sm font-medium text-slate-700"><i class="fas fa-robot mr-1"></i>By AI</span>'
+    + '      </label>'
     + '    </div>'
     + '  </div>'
 
@@ -475,6 +479,66 @@
     + '        <textarea class="' + inputCls + ' mb-3 resize-none bg-slate-50" id="jsonOutput2" rows="10" readonly></textarea>'
     + '        <button class="' + btnPrimary + '" type="button" id="copyJson2Btn"><i class="fas fa-copy"></i> Copy Output</button>'
     + '      </div>'
+    + '    </div>'
+    + '  </div>'
+
+    // ── By AI ──
+    + '  <div id="aiQuerySection" style="display:none;">'
+    + '    <div class="ai-panel">'
+
+    // Status bar
+    + '      <div class="flex items-center gap-3 mb-4">'
+    + '        <span id="aiStatusBadge" class="ai-status-badge ai-status-idle"><i class="fas fa-circle text-xs mr-1"></i> <span id="aiStatusText">Not loaded</span></span>'
+    + '        <span class="text-xs text-slate-400" id="aiModelLabel">' + 'Llama 3.1 8B Instruct (~4.5 GB)' + '</span>'
+    + '      </div>'
+
+    // Progress bar (hidden by default)
+    + '      <div id="aiProgressWrap" class="hidden mb-4">'
+    + '        <div class="ai-progress-bar"><div class="ai-progress-fill" id="aiProgressFill" style="width:0%"></div></div>'
+    + '        <p class="text-xs text-slate-500 mt-1" id="aiProgressLabel">Preparing...</p>'
+    + '      </div>'
+
+    // WebGPU not supported message (hidden by default)
+    + '      <div id="aiNoWebGPU" class="hidden mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">'
+    + '        <i class="fas fa-exclamation-triangle mr-1"></i> AI mode requires a browser with <strong>WebGPU</strong> support (Chrome 113+, Edge 113+). Please update your browser to use this feature.'
+    + '      </div>'
+
+    // Load + Input area
+    + '      <div id="aiInputArea">'
+    + '        <button type="button" id="aiLoadModelBtn" class="' + btnPrimary + ' mb-4"><i class="fas fa-download"></i> Load AI Model</button>'
+    + '        <label class="' + labelCls + '"><i class="fas fa-comment-dots mr-1"></i> Describe what you want to find:</label>'
+    + '        <textarea class="' + inputCls + ' mb-3 resize-none" id="aiRequestInput" rows="4">Find all payment failures from collect_service in the last 10 minutes, exclude insufficient balance errors</textarea>'
+    + '        <button type="button" id="aiGenerateBtn" class="' + btnPrimary + '" disabled><i class="fas fa-bolt"></i> Generate</button>'
+    + '      </div>'
+
+    // Results panel (hidden until generation)
+    + '      <div id="aiResultsPanel" class="hidden mt-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">'
+    + '        <div class="flex items-center justify-between mb-3">'
+    + '          <h4 class="text-sm font-semibold text-slate-700"><i class="fas fa-check-circle mr-1"></i> AI Plan Generated</h4>'
+    + '          <span id="aiConfidenceBadge" class="ai-confidence">0.0</span>'
+    + '        </div>'
+
+    // Notes
+    + '        <div id="aiNotesWrap" class="hidden mb-3">'
+    + '          <p class="text-xs font-semibold text-slate-600 mb-1">Notes:</p>'
+    + '          <ul id="aiNotesList" class="ai-notes"></ul>'
+    + '        </div>'
+
+    // Plan summary
+    + '        <div id="aiPlanSummary" class="mb-3 text-sm text-slate-600"></div>'
+
+    // Actions
+    + '        <div class="flex gap-2 mb-3">'
+    + '          <button type="button" id="aiApplyBtn" class="' + btnPrimary + ' bg-emerald-600 hover:bg-emerald-700"><i class="fas fa-check"></i> Apply to Conditions</button>'
+    + '        </div>'
+
+    // Debug: raw plan
+    + '        <details class="mt-2">'
+    + '          <summary class="text-xs text-slate-400 cursor-pointer hover:text-slate-600">Show raw AI output</summary>'
+    + '          <pre id="aiRawOutput" class="ai-raw-plan mt-1"></pre>'
+    + '        </details>'
+    + '      </div>'
+
     + '    </div>'
     + '  </div>'
 
@@ -789,14 +853,51 @@
     var r = root(container);
     var condSection = byId('conditionQuerySection', r);
     var jsonSection = byId('jsonQuerySection', r);
+    var aiSection   = byId('aiQuerySection', r);
     var condRadio   = byId('conditionQueryRadio', r);
-    if (condRadio && condRadio.checked) {
-      if (condSection) condSection.style.display = 'block';
-      if (jsonSection) jsonSection.style.display = 'none';
-    } else {
-      if (condSection) condSection.style.display = 'none';
-      if (jsonSection) jsonSection.style.display = 'block';
+    var jsonRadio   = byId('jsonQueryRadio', r);
+    var aiRadio     = byId('aiQueryRadio', r);
+
+    var show = 'condition';
+    if (jsonRadio && jsonRadio.checked) show = 'json';
+    if (aiRadio && aiRadio.checked) show = 'ai';
+
+    if (condSection) condSection.style.display = show === 'condition' ? 'block' : 'none';
+    if (jsonSection) jsonSection.style.display = show === 'json' ? 'block' : 'none';
+    if (aiSection) aiSection.style.display = show === 'ai' ? 'block' : 'none';
+
+    if (show === 'ai') initAiSection(container);
+  }
+
+  function initAiSection(container) {
+    var r = root(container);
+    var planner = window.App && window.App.aiPlanner;
+    if (!planner) return;
+
+    var noGpu   = byId('aiNoWebGPU', r);
+    var loadBtn = byId('aiLoadModelBtn', r);
+    var genBtn  = byId('aiGenerateBtn', r);
+
+    if (!planner.checkWebGPUSupport()) {
+      if (noGpu) noGpu.classList.remove('hidden');
+      if (loadBtn) loadBtn.disabled = true;
+      if (genBtn) genBtn.disabled = true;
+      return;
     }
+
+    if (planner.getStatus() === 'ready') {
+      if (loadBtn) loadBtn.style.display = 'none';
+      if (genBtn) genBtn.disabled = false;
+      updateAiStatusBadge(r, 'ready', 'Ready');
+    }
+  }
+
+  function updateAiStatusBadge(r, state, text) {
+    var badge = byId('aiStatusBadge', r);
+    var label = byId('aiStatusText', r);
+    if (!badge) return;
+    badge.className = 'ai-status-badge ai-status-' + state;
+    if (label) label.textContent = text;
   }
 
   // ─── By JSON helpers (unchanged logic) ───────────────────────────
@@ -1020,8 +1121,10 @@
     // Query method radios
     var condRadio = byId('conditionQueryRadio', r);
     var jsonRadio = byId('jsonQueryRadio', r);
+    var aiRadio   = byId('aiQueryRadio', r);
     if (condRadio) condRadio.addEventListener('change', function () { handleQueryMethodChange(container); });
     if (jsonRadio) jsonRadio.addEventListener('change', function () { handleQueryMethodChange(container); });
+    if (aiRadio)   aiRadio.addEventListener('change', function () { handleQueryMethodChange(container); });
 
     // By JSON convert + copy
     var convertJsonQueryBtn = byId('convertJsonQueryBtn', r);
@@ -1029,12 +1132,279 @@
     var copyJson2Btn = byId('copyJson2Btn', r);
     if (copyJson2Btn) copyJson2Btn.addEventListener('click', function () { copyOutput(container, 'jsonOutput2'); });
 
+    // ── AI Section wiring ──
+    mountAiSection(container);
+
     // Aggregation template buttons
     mountAggTemplateButtons(container);
 
     // Initial state
     createConditionRow(container);
     handleConvertButtonClick(container);
+  }
+
+  // ─── AI Section Mount ──────────────────────────────────────────
+
+  function mountAiSection(container) {
+    var r = root(container);
+    var planner = window.App && window.App.aiPlanner;
+    if (!planner) return;
+
+    var loadBtn   = byId('aiLoadModelBtn', r);
+    var genBtn    = byId('aiGenerateBtn', r);
+    var applyBtn  = byId('aiApplyBtn', r);
+    var requestEl = byId('aiRequestInput', r);
+
+    // Load Model
+    if (loadBtn) {
+      loadBtn.addEventListener('click', function () {
+        loadBtn.disabled = true;
+        loadBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+        updateAiStatusBadge(r, 'downloading', 'Downloading model...');
+
+        var progressWrap = byId('aiProgressWrap', r);
+        var progressFill = byId('aiProgressFill', r);
+        var progressLabel = byId('aiProgressLabel', r);
+        if (progressWrap) progressWrap.classList.remove('hidden');
+
+        planner.loadModel(function (progress) {
+          var pct = 0;
+          if (progress.progress) pct = Math.round(progress.progress * 100);
+          if (progressFill) progressFill.style.width = pct + '%';
+          if (progressLabel) progressLabel.textContent = progress.text || ('Loading... ' + pct + '%');
+          if (progress.progress > 0 && progress.progress < 1) {
+            updateAiStatusBadge(r, 'downloading', 'Downloading ' + pct + '%');
+          }
+        }).then(function () {
+          updateAiStatusBadge(r, 'ready', 'Ready');
+          loadBtn.style.display = 'none';
+          if (progressWrap) progressWrap.classList.add('hidden');
+          if (genBtn) genBtn.disabled = false;
+        }).catch(function (err) {
+          updateAiStatusBadge(r, 'error', 'Error: ' + (err.message || err));
+          loadBtn.disabled = false;
+          loadBtn.innerHTML = '<i class="fas fa-download"></i> Retry Load';
+          if (progressWrap) progressWrap.classList.add('hidden');
+        });
+      });
+    }
+
+    // Generate
+    if (genBtn) {
+      genBtn.addEventListener('click', function () {
+        var userRequest = requestEl ? requestEl.value.trim() : '';
+        if (!userRequest) return;
+
+        genBtn.disabled = true;
+        genBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+        updateAiStatusBadge(r, 'generating', 'Generating...');
+
+        var tfEl = byId('alertTimeFrame', r);
+        var currentState = { timeframe: tfEl ? tfEl.value : 'now-1h' };
+
+        planner.generatePlan(userRequest, currentState).then(function (result) {
+          updateAiStatusBadge(r, 'ready', 'Ready');
+          genBtn.disabled = false;
+          genBtn.innerHTML = '<i class="fas fa-bolt"></i> Generate';
+          showAiResults(r, result, container);
+        }).catch(function (err) {
+          updateAiStatusBadge(r, 'ready', 'Ready');
+          genBtn.disabled = false;
+          genBtn.innerHTML = '<i class="fas fa-bolt"></i> Generate';
+          showAiError(r, err.message || String(err));
+        });
+      });
+    }
+
+    // Apply to Conditions
+    if (applyBtn) {
+      applyBtn.addEventListener('click', function () {
+        applyAiPlanToConditions(container);
+      });
+    }
+  }
+
+  var lastAiPlan = null;
+
+  function showAiResults(r, result, container) {
+    var panel = byId('aiResultsPanel', r);
+    var rawEl = byId('aiRawOutput', r);
+    if (!panel) return;
+
+    if (rawEl) rawEl.textContent = result.raw || '';
+
+    if (!result.plan || !result.plan.valid) {
+      var errors = (result.plan && result.plan.errors) ? result.plan.errors.join(', ') : 'Unknown error';
+      showAiError(r, 'Validation failed: ' + errors);
+      panel.classList.remove('hidden');
+      return;
+    }
+
+    lastAiPlan = result.plan.plan;
+    panel.classList.remove('hidden');
+
+    // Confidence badge
+    var confBadge = byId('aiConfidenceBadge', r);
+    if (confBadge) {
+      var conf = lastAiPlan.confidence || 0;
+      confBadge.textContent = (conf * 100).toFixed(0) + '%';
+      confBadge.className = 'ai-confidence';
+      if (conf >= 0.7) confBadge.classList.add('ai-conf-high');
+      else if (conf >= 0.4) confBadge.classList.add('ai-conf-mid');
+      else confBadge.classList.add('ai-conf-low');
+    }
+
+    // Notes
+    var notesWrap = byId('aiNotesWrap', r);
+    var notesList = byId('aiNotesList', r);
+    if (notesWrap && notesList) {
+      var notes = lastAiPlan.notes || [];
+      if (notes.length > 0) {
+        notesWrap.classList.remove('hidden');
+        notesList.innerHTML = notes.map(function (n) {
+          return '<li class="text-xs text-amber-700"><i class="fas fa-info-circle mr-1"></i>' + escapeHtml(n) + '</li>';
+        }).join('');
+      } else {
+        notesWrap.classList.add('hidden');
+      }
+    }
+
+    // Plan summary
+    var summary = byId('aiPlanSummary', r);
+    if (summary) {
+      var lines = [];
+      lines.push('<strong>Timeframe:</strong> ' + escapeHtml(lastAiPlan.timeframe));
+      lines.push('<strong>Must:</strong> ' + lastAiPlan.must.length + ' condition(s)');
+      lastAiPlan.must.forEach(function (c) {
+        lines.push('&nbsp;&nbsp; ' + escapeHtml(c.field) + ' <em>' + escapeHtml(c.op) + '</em> "' + escapeHtml(c.value) + '"');
+      });
+      if (lastAiPlan.must_not.length) {
+        lines.push('<strong>Must Not:</strong> ' + lastAiPlan.must_not.length + ' condition(s)');
+        lastAiPlan.must_not.forEach(function (c) {
+          lines.push('&nbsp;&nbsp; ' + escapeHtml(c.field) + ' <em>' + escapeHtml(c.op) + '</em> "' + escapeHtml(c.value) + '"');
+        });
+      }
+      if (lastAiPlan.aggs) {
+        lines.push('<strong>Aggregation:</strong> ' + lastAiPlan.aggs.kind + (lastAiPlan.aggs.field ? ' on ' + lastAiPlan.aggs.field : ''));
+      }
+      summary.innerHTML = lines.join('<br>');
+    }
+  }
+
+  function showAiError(r, message) {
+    var panel = byId('aiResultsPanel', r);
+    var summary = byId('aiPlanSummary', r);
+    if (panel) panel.classList.remove('hidden');
+    if (summary) summary.innerHTML = '<span class="text-red-600"><i class="fas fa-exclamation-triangle mr-1"></i>' + escapeHtml(message) + '</span>';
+    var confBadge = byId('aiConfidenceBadge', r);
+    if (confBadge) { confBadge.textContent = '!'; confBadge.className = 'ai-confidence ai-conf-low'; }
+    var notesWrap = byId('aiNotesWrap', r);
+    if (notesWrap) notesWrap.classList.add('hidden');
+  }
+
+  function escapeHtml(str) {
+    return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  function applyAiPlanToConditions(container) {
+    if (!lastAiPlan) return;
+    var r = root(container);
+    var plan = lastAiPlan;
+
+    // Switch to By Conditions
+    var condRadio = byId('conditionQueryRadio', r);
+    if (condRadio) {
+      condRadio.checked = true;
+      handleQueryMethodChange(container);
+    }
+
+    // Set timeframe
+    var tfEl = byId('alertTimeFrame', r);
+    if (tfEl && plan.timeframe) {
+      tfEl.value = plan.timeframe;
+    }
+
+    // Clear existing conditions
+    var queryInputs = byId('queryInputs', r);
+    if (queryInputs) queryInputs.innerHTML = '';
+
+    // Add must conditions
+    (plan.must || []).forEach(function (c) {
+      addAiConditionRow(container, 'must', c);
+    });
+
+    // Add must_not conditions
+    (plan.must_not || []).forEach(function (c) {
+      addAiConditionRow(container, 'must_not', c);
+    });
+
+    // Add at least one empty row if no conditions
+    if (!plan.must.length && !plan.must_not.length) {
+      createConditionRow(container);
+    }
+
+    // Apply aggregations
+    if (plan.aggs && plan.aggs.kind !== 'none') {
+      var aggInput = byId('aggJsonInput', r);
+      if (aggInput) {
+        var aggJson = buildAiAgg(plan.aggs);
+        if (aggJson) aggInput.value = JSON.stringify(aggJson, null, 4);
+      }
+    }
+  }
+
+  function addAiConditionRow(container, clause, cond) {
+    createConditionRow(container);
+    var r = root(container);
+    var rows = r.querySelectorAll('#queryInputs .condition-row');
+    var row = rows[rows.length - 1];
+    if (!row) return;
+
+    var clauseSelect = row.querySelector('.clause-select');
+    if (clauseSelect) clauseSelect.value = clause;
+
+    var keyInput = row.querySelector('.key-search-input');
+    if (keyInput) {
+      keyInput.value = cond.field;
+      row.dataset.selectedField = cond.field;
+
+      var fieldMeta = getCatalog().getByName(cond.field);
+      var opSelect = row.querySelector('.operator-select');
+      if (fieldMeta && opSelect) {
+        opSelect.innerHTML = buildOperatorOptions(fieldMeta.type);
+      }
+    }
+
+    var opSelect = row.querySelector('.operator-select');
+    if (opSelect) {
+      opSelect.value = cond.op;
+      opSelect.dispatchEvent(new Event('change'));
+    }
+
+    var valInput = row.querySelector('.value-input');
+    if (valInput) valInput.value = cond.value || '';
+  }
+
+  function buildAiAgg(agg) {
+    if (!agg) return null;
+    if (agg.kind === 'filters_by_values' && agg.field && agg.values) {
+      return buildFiltersAgg({
+        aggName: 'by_filter',
+        field: agg.field,
+        queryType: 'match_phrase',
+        values: agg.values.map(function (v) { return { label: v, value: v }; })
+      });
+    }
+    if (agg.kind === 'terms' && agg.field) {
+      return buildTermsAgg({
+        aggName: 'top_values',
+        field: agg.field,
+        size: agg.size || 20,
+        orderKey: '_count',
+        orderDir: 'desc'
+      });
+    }
+    return null;
   }
 
   // ─── Export ──────────────────────────────────────────────────────

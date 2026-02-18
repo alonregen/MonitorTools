@@ -328,6 +328,114 @@
 }
 
 
+/* ─── AI Planner (By AI mode) ─── */
+
+.ai-panel {
+  max-width: 640px;
+}
+
+/* Status badge */
+.ai-status-badge {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 0.2rem 0.625rem;
+  border-radius: 9999px;
+  line-height: 1.4;
+}
+.ai-status-idle {
+  background: #f1f5f9;
+  color: #64748b;
+}
+.ai-status-downloading {
+  background: #eff6ff;
+  color: #3b82f6;
+}
+.ai-status-loading {
+  background: #eff6ff;
+  color: #3b82f6;
+}
+.ai-status-ready {
+  background: #ecfdf5;
+  color: #059669;
+}
+.ai-status-generating {
+  background: #fefce8;
+  color: #ca8a04;
+}
+.ai-status-error {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+/* Progress bar */
+.ai-progress-bar {
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 9999px;
+  overflow: hidden;
+}
+.ai-progress-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #6366f1, #818cf8);
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+/* Confidence badge */
+.ai-confidence {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.15rem 0.5rem;
+  border-radius: 9999px;
+  min-width: 2.5rem;
+  justify-content: center;
+}
+.ai-conf-high {
+  background: #ecfdf5;
+  color: #059669;
+}
+.ai-conf-mid {
+  background: #fefce8;
+  color: #ca8a04;
+}
+.ai-conf-low {
+  background: #fef2f2;
+  color: #dc2626;
+}
+
+/* Notes list */
+.ai-notes {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.ai-notes li {
+  padding: 0.25rem 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+.ai-notes li:last-child {
+  border-bottom: none;
+}
+
+/* Raw plan output */
+.ai-raw-plan {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  background: #1e293b;
+  color: #e2e8f0;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 300px;
+}
+
 /* Maintenance Analyzed – result cards */
 #maintenanceResult article {
   break-inside: avoid;
