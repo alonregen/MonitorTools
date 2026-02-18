@@ -4,11 +4,10 @@ Static multi-tool web app that runs on **GitHub Pages** (client-side only: HTML,
 
 ## Running the app
 
-**Yes, it can run on GitHub (GitHub Pages).** No server to run on your machine.
+**Static HTML/JS app. No server needed.**
 
-- **GitHub Pages (recommended):** Push the repo to GitHub, enable Pages in repo Settings, then open `https://<username>.github.io/MonitorTools/`. All scripts and routes work there.
-- **Locally (recommended):** From the project folder run **`npm start`**. The app opens at `http://localhost:3000/`. **Do not open the project folder in the browser** (e.g. `file:///.../MonitorTools/`) or you will see an "Index of" file list—use the URL from `npm start` or double‑click **`index.html`** to open the app.
-- **Locally (file):** You can also double‑click **`index.html`** (not the MonitorTools folder) or open it via `file://`. The app uses classic scripts (no ES modules), so it runs without a local server.
+- **GitHub Pages:** Push the repo to GitHub, enable Pages in repo Settings, then open `https://<username>.github.io/MonitorTools/`.
+- **Locally:** **Do not open the MonitorTools folder in the browser** (that shows a file list). Instead, double‑click **`index.html`** or **`Open the app.html`** so the app loads. Use the file, not the folder.
 
 ## Features
 

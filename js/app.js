@@ -5,14 +5,15 @@
 (function () {
   var views = window.MonitorToolsViews || {};
   var routes = [
-    { path: 'home', view: views.homeView },
-    { path: 'nested', view: views.nestedView },
-    { path: 'email', view: views.emailView },
-    { path: 'tokens', view: views.tokensView },
-    { path: 'analyze', view: views.analyzeView }
+    { path: 'home', view: views.homeView, title: 'HOME Page' },
+    { path: 'nested', view: views.nestedView, title: 'Nested Search Query Builder' },
+    { path: 'email', view: views.emailView, title: 'Email Generator' },
+    { path: 'tokens', view: views.tokensView, title: 'Tokens Generator' },
+    { path: 'analyze', view: views.analyzeView, title: 'Analyze Logs' }
   ];
 
 const defaultRoute = 'home';
+const appTitle = 'Monitor Tools';
 let currentView = null;
 let currentViewName = null;
 
@@ -20,9 +21,9 @@ const appContainer = document.getElementById('app');
 const navLinks = document.querySelectorAll('.nav-link[data-route]');
 
 function getHashRoute() {
-  const hash = window.location.hash.slice(1);
-  const path = hash.slice(0, 1) === '/' ? hash.slice(1) : hash;
-  const segment = path.split('/')[0] || defaultRoute;
+  var hash = (window.location.hash || '').slice(1);
+  var path = hash.charAt(0) === '/' ? hash.slice(1) : hash;
+  var segment = (path.split('/')[0] || '').trim() || defaultRoute;
   return segment;
 }
 
@@ -46,6 +47,8 @@ function renderRoute(routeName) {
   currentView = view;
   currentViewName = name;
   setActiveNav(name);
+  var routeConfig = routes.find(function (r) { return r.path === name; });
+  document.title = routeConfig && routeConfig.title ? appTitle + ' – ' + routeConfig.title : appTitle;
 
   if (!view || typeof view.render !== 'function') {
     appContainer.innerHTML = '<div class="p-4 text-red-600">This view did not load. Open the browser console (F12 → Console) to see any script errors.</div>';
@@ -76,8 +79,9 @@ function handleHashChange() {
 }
 
 function navigateToDefault() {
-  const route = getHashRoute();
-  if (!route || !routes.some(function (r) { return r.path === route; })) {
+  var route = getHashRoute();
+  var isValid = route && routes.some(function (r) { return r.path === route; });
+  if (!isValid) {
     window.location.hash = '#/' + defaultRoute;
     return;
   }
@@ -85,8 +89,18 @@ function navigateToDefault() {
 }
 
 window.addEventListener('hashchange', handleHashChange);
-window.addEventListener('load', function () {
+
+var initialRouteDone = false;
+function doInitialRoute() {
+  if (initialRouteDone) return;
+  initialRouteDone = true;
   navigateToDefault();
-});
+}
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', doInitialRoute);
+} else {
+  doInitialRoute();
+}
+window.addEventListener('load', doInitialRoute);
 })();
 

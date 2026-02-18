@@ -209,15 +209,24 @@ function render() {
     /* token list columns: 2 when no custom, 3 when custom filled */
     '  <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="tokenListsGrid">',
     '    <div class="token-box rounded-xl border border-slate-200 bg-slate-50 p-4 min-h-[200px] overflow-y-auto">',
-    '      <h3 class="text-sm font-semibold text-slate-800 mb-2">Payment Tokens:</h3>',
+    '      <div class="flex items-center justify-between mb-2">',
+    '        <h3 class="text-sm font-semibold text-slate-800">Payment Tokens:</h3>',
+    '        <button type="button" id="copyPaymentTokensBtn" class="copy-tokens-btn inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 text-xs font-medium transition shadow-sm hidden"><i class="fas fa-copy"></i> Copy</button>',
+    '      </div>',
     '      <ol id="paymentTokensList" class="list-decimal list-inside text-sm text-slate-700 space-y-1"></ol>',
     '    </div>',
     '    <div class="token-box rounded-xl border border-slate-200 bg-slate-50 p-4 min-h-[200px] overflow-y-auto">',
-    '      <h3 class="text-sm font-semibold text-slate-800 mb-2">Payout Tokens:</h3>',
+    '      <div class="flex items-center justify-between mb-2">',
+    '        <h3 class="text-sm font-semibold text-slate-800">Payout Tokens:</h3>',
+    '        <button type="button" id="copyPayoutTokensBtn" class="copy-tokens-btn inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 text-xs font-medium transition shadow-sm hidden"><i class="fas fa-copy"></i> Copy</button>',
+    '      </div>',
     '      <ol id="payoutTokensList" class="list-decimal list-inside text-sm text-slate-700 space-y-1"></ol>',
     '    </div>',
     '    <div id="customTokensCol" class="token-box rounded-xl border border-slate-200 bg-slate-50 p-4 min-h-[200px] overflow-y-auto hidden">',
-    '      <h3 id="customTokensTitle" class="text-sm font-semibold text-slate-800 mb-2">Custom Tokens:</h3>',
+    '      <div class="flex items-center justify-between mb-2">',
+    '        <h3 id="customTokensTitle" class="text-sm font-semibold text-slate-800">Custom Tokens:</h3>',
+    '        <button type="button" id="copyCustomTokensBtn" class="copy-tokens-btn inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 text-xs font-medium transition shadow-sm hidden"><i class="fas fa-copy"></i> Copy</button>',
+    '      </div>',
     '      <ol id="customTokensList" class="list-decimal list-inside text-sm text-slate-700 space-y-1"></ol>',
     '    </div>',
     '  </div>',
@@ -473,6 +482,14 @@ function applyTokenListFilter(c, query) {
   if (paymentEl) paymentEl.innerHTML = buildList(paymentFiltered, 'No payment tokens found.');
   if (payoutEl)  payoutEl.innerHTML  = buildList(payoutFiltered, 'No payout tokens found.');
   if (customEl)  customEl.innerHTML  = buildList(customFiltered, 'No custom tokens found.');
+  
+  // Show/hide copy buttons based on whether there are tokens
+  var copyPaymentBtn = document.getElementById('copyPaymentTokensBtn');
+  var copyPayoutBtn = document.getElementById('copyPayoutTokensBtn');
+  var copyCustomBtn = document.getElementById('copyCustomTokensBtn');
+  if (copyPaymentBtn) copyPaymentBtn.classList.toggle('hidden', paymentFiltered.length === 0);
+  if (copyPayoutBtn) copyPayoutBtn.classList.toggle('hidden', payoutFiltered.length === 0);
+  if (copyCustomBtn) copyCustomBtn.classList.toggle('hidden', customFiltered.length === 0);
 
   var totalFiltered = paymentFiltered.length + payoutFiltered.length + customFiltered.length;
   var totalAll = pay.length + out.length + cust.length;
@@ -826,6 +843,70 @@ function mount(c) {
   /* set initial badge state */
   var badge = _byId('tokenAdvancedBadge', c);
   if (badge) badge.classList.toggle('hidden', !advancedSettings.enabled);
+
+  /* Copy buttons for token lists */
+  var copyPaymentBtn = _byId('copyPaymentTokensBtn', c);
+  if (copyPaymentBtn) {
+    copyPaymentBtn.addEventListener('click', function() {
+      var tokens = lastPaymentTokens.filter(isValidToken);
+      var text = tokens.join('\n');
+      if (text && dom.copyToClipboard) {
+        dom.copyToClipboard(text).then(function(success) {
+          if (success) {
+            var originalHtml = copyPaymentBtn.innerHTML;
+            copyPaymentBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            copyPaymentBtn.classList.add('bg-indigo-700');
+            setTimeout(function() {
+              copyPaymentBtn.innerHTML = originalHtml;
+              copyPaymentBtn.classList.remove('bg-indigo-700');
+            }, 2000);
+          }
+        });
+      }
+    });
+  }
+
+  var copyPayoutBtn = _byId('copyPayoutTokensBtn', c);
+  if (copyPayoutBtn) {
+    copyPayoutBtn.addEventListener('click', function() {
+      var tokens = lastPayoutTokens.filter(isValidToken);
+      var text = tokens.join('\n');
+      if (text && dom.copyToClipboard) {
+        dom.copyToClipboard(text).then(function(success) {
+          if (success) {
+            var originalHtml = copyPayoutBtn.innerHTML;
+            copyPayoutBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            copyPayoutBtn.classList.add('bg-indigo-700');
+            setTimeout(function() {
+              copyPayoutBtn.innerHTML = originalHtml;
+              copyPayoutBtn.classList.remove('bg-indigo-700');
+            }, 2000);
+          }
+        });
+      }
+    });
+  }
+
+  var copyCustomBtn = _byId('copyCustomTokensBtn', c);
+  if (copyCustomBtn) {
+    copyCustomBtn.addEventListener('click', function() {
+      var tokens = lastCustomTokens.filter(isValidToken);
+      var text = tokens.join('\n');
+      if (text && dom.copyToClipboard) {
+        dom.copyToClipboard(text).then(function(success) {
+          if (success) {
+            var originalHtml = copyCustomBtn.innerHTML;
+            copyCustomBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            copyCustomBtn.classList.add('bg-indigo-700');
+            setTimeout(function() {
+              copyCustomBtn.innerHTML = originalHtml;
+              copyCustomBtn.classList.remove('bg-indigo-700');
+            }, 2000);
+          }
+        });
+      }
+    });
+  }
 
   setExtractButtonEnabled(c, true);
 }

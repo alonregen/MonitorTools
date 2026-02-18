@@ -29,6 +29,7 @@ function render() {
     <textarea id="logInput" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm resize-none" rows="15" placeholder="OpenSearch -> Get all the hits for the operation ID -> Inspect > Response -> Copy button -> Paste your logs here..."></textarea>
     <div class="mt-4 pt-4 border-t border-slate-200">
       <button class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="analyzeBtn"><i class="fas fa-chart-line"></i> Analyze Logs</button>
+      <button class="inline-flex items-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm ml-2" type="button" id="clearBtn"><i class="fas fa-trash-alt"></i> Clear</button>
     </div>
     <div id="logOutput" class="mt-6">
       <pre id="analysisResults" class="text-sm text-slate-600">Results will appear here...</pre>
@@ -94,40 +95,88 @@ const fieldIcons = {
   quarantined_item_id: 'fas fa-shield-alt'
 };
 
-const fieldPatterns = {
-  payment_token: /payment_token:\s*'([^']*)'/,
-  payment_original_amount: /payment_original_amount:\s*'([^']*)'/,
-  payment_currency_code: /payment_currency_code:\s*'([^']*)'/,
-  payment_failure_code: /payment_failure_code:\s*'([^']*)'/,
-  payment_failure_message: /payment_failure_message:\s*'([^']*)'/,
-  payment_method_type_type: /payment_method_type_type:\s*'([^']*)'/,
-  reference_id: /reference_id:\s*'([^']*)'/,
-  gateway: /gc_type:\s*'([^']*)'/,
-  payout_token: /payout_token:\s*'([^']*)'/,
-  payout_original_amount: /payout_original_amount:\s*'([^']*)'/,
-  payout_currency_code: /payout_currency_code:\s*'([^']*)'/,
-  payout_failure_code: /payout_failure_code:\s*'([^']*)'/,
-  payout_failure_message: /payout_failure_message:\s*'([^']*)'/,
-  payout_method_type_type: /payout_method_type_type:\s*'([^']*)'/,
-  quarantined_item_id: /quarantined_item_id:\s*'([^']*)'/
-};
+var paymentFields = [
+  'payment_token', 'payment_original_amount', 'payment_currency_code',
+  'payment_failure_code', 'payment_failure_message', 'payment_method_type_type'
+];
+var payoutFields = [
+  'payout_token', 'payout_original_amount', 'payout_currency_code',
+  'payout_failure_code', 'payout_failure_message', 'payout_method_type_type'
+];
+var sharedFields = ['reference_id', 'gateway', 'quarantined_item_id'];
+var allDetailFields = paymentFields.concat(payoutFields).concat(sharedFields);
+
+function getVisibleFields(uniqueDetails) {
+  var hasPayment = !!uniqueDetails.payment_token;
+  var hasPayout = !!uniqueDetails.payout_token;
+  if (hasPayment && hasPayout) return allDetailFields;
+  if (hasPayout) return payoutFields.concat(sharedFields);
+  return paymentFields.concat(sharedFields);
+}
+
+function buildFieldRegexes(fieldName) {
+  var keys = [];
+  if (fieldName === 'gateway') {
+    keys.push('gc_type', 'gateway_name');
+  } else {
+    keys.push(fieldName);
+    if (fieldName.startsWith('payment_') && fieldName !== 'payment_token') {
+      keys.push(fieldName.replace('payment_', ''));
+    }
+    if (fieldName.startsWith('payout_') && fieldName !== 'payout_token') {
+      keys.push(fieldName.replace('payout_', ''));
+    }
+    if (fieldName === 'payment_method_type_type') {
+      keys.push('payment_method_type');
+    }
+  }
+  var regexes = [];
+  keys.forEach(function (key) {
+    regexes.push(new RegExp(key + ":\\s*'([^']+)'?"));
+    regexes.push(new RegExp('"' + key + '"\\s*:\\s*"([^"]+)"'));
+    regexes.push(new RegExp(key + "=([^\\s,;&]+)"));
+    regexes.push(new RegExp(key + ':\\s*([^\\s,;\\}\\]]+)'));
+  });
+  return regexes;
+}
 
 function extractUniqueDetails(hits) {
-  const uniqueDetails = {};
-  hits.forEach((hit) => {
-    const source = hit._source;
+  var uniqueDetails = {};
+  hits.forEach(function (hit) {
+    var source = hit._source;
+    var searchTexts = [];
     if (source.params != null) {
-      const paramsStr = typeof source.params === 'string' ? source.params : JSON.stringify(source.params);
-      Object.keys(fieldPatterns).forEach((fieldName) => {
-        const pattern = fieldPatterns[fieldName];
-        const match = paramsStr.match(pattern);
-        if (match && match[1]) {
-          const normalizedValue = match[1].trim();
-          if (!uniqueDetails[fieldName]) {
-            uniqueDetails[fieldName] = normalizedValue;
+      searchTexts.push(typeof source.params === 'string' ? source.params : JSON.stringify(source.params));
+    }
+    if (source.message) {
+      searchTexts.push(source.message);
+    }
+    if (searchTexts.length === 0) return;
+    var combined = searchTexts.join(' ');
+    allDetailFields.forEach(function (fieldName) {
+      if (uniqueDetails[fieldName]) return;
+      var regexes = buildFieldRegexes(fieldName);
+      for (var i = 0; i < regexes.length; i++) {
+        var match = combined.match(regexes[i]);
+        if (match && match[1] && match[1].trim()) {
+          var value = match[1].trim();
+          if (value === 'undefined' || value === 'null' || value === 'nil') continue;
+          if (fieldName === 'reference_id' && value.toLowerCase().startsWith('qm_')) {
+            if (!uniqueDetails.quarantined_item_id) {
+              uniqueDetails.quarantined_item_id = value;
+            }
+            return;
           }
+          uniqueDetails[fieldName] = value;
+          break;
         }
-      });
+      }
+    });
+    if (!uniqueDetails.quarantined_item_id) {
+      var qmMatch = combined.match(/\bqm_[a-f0-9]{32}\b/);
+      if (qmMatch) {
+        uniqueDetails.quarantined_item_id = qmMatch[0];
+      }
     }
   });
   return uniqueDetails;
@@ -169,98 +218,75 @@ function contextLogBlock(hit, labelText) {
     '</summary><div class="px-4 pb-4">' + fullLogHtml(hit) + '</div></details>';
 }
 
-function generateOccurrenceHtml(index, details, hit, sortedHits) {
-  const key = (h) => (h._source.label || '') + '|' + (h._source.timestamp || 0) + '|' + (h._source.message || '').slice(0, 80);
-  const hitKey = key(hit);
-  const idx = sortedHits.findIndex((h) => key(h) === hitKey);
-  const prevHtml = idx > 0 ? contextLogBlock(sortedHits[idx - 1], 'Previous log') : '';
-  const nextHtml = idx >= 0 && idx < sortedHits.length - 1 ? contextLogBlock(sortedHits[idx + 1], 'Next log') : '';
-  return `
-    <div class="occurrence-card rounded-xl border-2 border-red-200 bg-white shadow-sm mb-4 overflow-hidden">
-      ${prevHtml ? '<div class="px-0 pt-0">' + prevHtml + '</div>' : ''}
-      <div class="bg-red-600 text-white px-4 py-2 flex items-center justify-between">
-        <h5 class="font-semibold text-sm m-0"><i class="fas fa-exclamation-triangle mr-1"></i>Occurrence ${index + 1}</h5>
-        <span class="text-sm opacity-90">${dom.escapeHtml(details.time)}</span>
-      </div>
-      <div class="p-4">
-        <div class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 mb-2 text-sm">
-          <span class="font-medium text-slate-600">Label:</span>
-          <span class="rounded-full bg-slate-200 text-slate-800 px-2 py-0.5 text-xs">${dom.escapeHtml(details.label)}</span>
-        </div>
-        <div class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 mb-2 text-sm">
-          <span class="font-medium text-slate-600">Level:</span>
-          <span class="rounded-full bg-amber-200 text-amber-900 px-2 py-0.5 text-xs">${dom.escapeHtml(details.level)}</span>
-        </div>
-        <div class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 mb-2 text-sm">
-          <span class="font-medium text-slate-600">Message:</span>
-          <span class="text-slate-800">${dom.escapeHtml(details.message)}</span>
-        </div>
-        <div class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 mb-2 text-sm">
-          <span class="font-medium text-slate-600">Time:</span>
-          <span class="text-slate-800">${dom.escapeHtml(details.time)}</span>
-        </div>
-        <details class="mt-3">
-          <summary class="cursor-pointer inline-flex items-center gap-1 rounded-lg bg-slate-200 text-slate-800 px-3 py-1.5 text-sm font-medium hover:bg-slate-300"><i class="fas fa-expand-alt mr-1"></i>Full log</summary>
-          <div class="mt-2">${fullLogHtml(hit)}</div>
-        </details>
-      </div>
-      ${nextHtml ? '<div class="px-0 pb-0">' + nextHtml + '</div>' : ''}
-    </div>`;
+function generateOccurrenceHtml(index, details, hit) {
+  var isError = (details.level || '').toLowerCase() === 'error';
+  var borderCls = isError ? 'border-red-200' : 'border-amber-200';
+  var headerBg = isError ? 'bg-red-600' : 'bg-amber-600';
+  var headerIcon = isError ? 'fa-times-circle' : 'fa-exclamation-triangle';
+  var levelBadgeCls = isError ? 'bg-red-100 text-red-800' : 'bg-amber-200 text-amber-900';
+  return '<div class="rounded-xl border-2 ' + borderCls + ' bg-white shadow-sm mb-4 overflow-hidden">' +
+    '<div class="' + headerBg + ' text-white px-4 py-2">' +
+      '<h5 class="font-semibold text-sm m-0"><i class="fas ' + headerIcon + ' mr-1"></i>Occurrence ' + (index + 1) + ' <i class="fas fa-exclamation-triangle ml-1"></i></h5>' +
+    '</div>' +
+    '<div class="p-4">' +
+      '<div class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 mb-2 text-sm">' +
+        '<span class="font-medium text-slate-600">Label:</span>' +
+        '<span class="rounded-full bg-slate-200 text-slate-800 px-2 py-0.5 text-xs">' + dom.escapeHtml(details.label) + '</span>' +
+      '</div>' +
+      '<div class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 mb-2 text-sm">' +
+        '<span class="font-medium text-slate-600">Level:</span>' +
+        '<span class="rounded-full ' + levelBadgeCls + ' px-2 py-0.5 text-xs">' + dom.escapeHtml(details.level) + '</span>' +
+      '</div>' +
+      '<div class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 mb-2 text-sm">' +
+        '<span class="font-medium text-slate-600">Message:</span>' +
+        '<span class="text-slate-800">' + dom.escapeHtml(details.message) + '</span>' +
+      '</div>' +
+      '<div class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 mb-2 text-sm">' +
+        '<span class="font-medium text-slate-600">Time:</span>' +
+        '<span class="text-slate-800">' + dom.escapeHtml(details.time) + '</span>' +
+      '</div>' +
+      '<details class="mt-3">' +
+        '<summary class="cursor-pointer inline-flex items-center gap-1 rounded-lg bg-red-100 text-red-800 px-3 py-1.5 text-sm font-medium hover:bg-red-200"><i class="fas fa-cogs"></i> Show Params</summary>' +
+        '<pre class="mt-2 p-3 rounded-lg bg-slate-100 text-xs overflow-x-auto"><code>' + dom.escapeHtml(details.params) + '</code></pre>' +
+      '</details>' +
+    '</div>' +
+  '</div>';
 }
 
 function generateDetailsTable(uniqueDetails) {
-  let html = '<table class="w-full border-collapse border border-slate-300"><thead><tr class="bg-slate-100"><th class="border border-slate-300 px-3 py-2 text-left text-sm font-semibold">Field</th><th class="border border-slate-300 px-3 py-2 text-left text-sm font-semibold">Value</th></tr></thead><tbody>';
-  Object.keys(uniqueDetails).forEach(field => {
-    const icon = fieldIcons[field] || 'fas fa-question-circle';
-    html += '<tr class="odd:bg-slate-50"><td class="border border-slate-300 px-3 py-2 text-sm"><i class="' + icon + ' mr-1"></i>' + field.replace(/_/g, ' ').toUpperCase() + '</td><td class="border border-slate-300 px-3 py-2 text-sm">' + dom.escapeHtml(uniqueDetails[field]) + '</td></tr>';
+  var fields = getVisibleFields(uniqueDetails);
+  var html = '<table class="w-full border-collapse border border-slate-300"><thead><tr class="bg-slate-100"><th class="border border-slate-300 px-3 py-2 text-left text-sm font-semibold">Field</th><th class="border border-slate-300 px-3 py-2 text-left text-sm font-semibold">Value</th></tr></thead><tbody>';
+  fields.forEach(function (field) {
+    var icon = fieldIcons[field] || 'fas fa-question-circle';
+    var value = uniqueDetails[field] || '-----';
+    var valueCls = uniqueDetails[field] ? '' : ' text-slate-400 italic';
+    html += '<tr class="odd:bg-slate-50"><td class="border border-slate-300 px-3 py-2 text-sm"><i class="' + icon + ' mr-1"></i>' + field.replace(/_/g, ' ').toUpperCase() + '</td><td class="border border-slate-300 px-3 py-2 text-sm' + valueCls + '">' + dom.escapeHtml(value) + '</td></tr>';
   });
   html += '</tbody></table>';
   return html;
 }
 
-/** Build timeline events: errors/warnings + first/last per label + prev/next around each error/warning, sorted by time */
+/** Build timeline events: ALL logs sorted by time, with type flags for coloring */
 function buildTimelineEvents(hits) {
-  const byTime = [...hits].sort((a, b) => (a._source.timestamp || 0) - (b._source.timestamp || 0));
-  const seen = new Set();
-  const key = (h) => (h._source.label || '') + '|' + (h._source.timestamp || 0) + '|' + (h._source.message || '').slice(0, 80);
-  const events = [];
-  byTime.forEach((hit) => {
-    const level = (hit._source.level || '').toLowerCase();
-    const isErrorOrWarn = level === 'error' || level === 'warning';
-    const id = key(hit);
-    if (isErrorOrWarn) {
-      if (!seen.has(id)) { seen.add(id); events.push({ hit, type: level }); }
-    }
+  var byTime = [].concat(hits).sort(function (a, b) { return (a._source.timestamp || 0) - (b._source.timestamp || 0); });
+  var errorWarnIndices = new Set();
+  var contextIndices = new Set();
+  byTime.forEach(function (hit, i) {
+    var level = (hit._source.level || '').toLowerCase();
+    if (level === 'error' || level === 'warning') errorWarnIndices.add(i);
   });
-  const firstLastByLabel = {};
-  byTime.forEach((hit) => {
-    const label = hit._source.label || 'N/A';
-    if (!firstLastByLabel[label]) firstLastByLabel[label] = { first: hit, last: hit };
-    else firstLastByLabel[label].last = hit;
+  errorWarnIndices.forEach(function (i) {
+    if (i > 0) contextIndices.add(i - 1);
+    if (i < byTime.length - 1) contextIndices.add(i + 1);
   });
-  Object.values(firstLastByLabel).forEach(({ first, last }) => {
-    [first, last].forEach((h) => {
-      const id = key(h);
-      if (!seen.has(id)) { seen.add(id); events.push({ hit: h, type: 'info' }); }
-    });
+  return byTime.map(function (hit, i) {
+    var level = (hit._source.level || '').toLowerCase();
+    var type;
+    if (level === 'error' || level === 'warning') type = level;
+    else if (contextIndices.has(i) && !errorWarnIndices.has(i)) type = 'context';
+    else type = 'info';
+    return { hit: hit, type: type };
   });
-  /* Add previous and next log around each error/warning */
-  events.forEach((ev) => {
-    if (ev.type !== 'error' && ev.type !== 'warning') return;
-    const idx = byTime.findIndex((h) => key(h) === key(ev.hit));
-    if (idx < 0) return;
-    if (idx > 0) {
-      const prev = byTime[idx - 1];
-      const prevId = key(prev);
-      if (!seen.has(prevId)) { seen.add(prevId); events.push({ hit: prev, type: 'context' }); }
-    }
-    if (idx < byTime.length - 1) {
-      const next = byTime[idx + 1];
-      const nextId = key(next);
-      if (!seen.has(nextId)) { seen.add(nextId); events.push({ hit: next, type: 'context' }); }
-    }
-  });
-  return events.sort((a, b) => (a.hit._source.timestamp || 0) - (b.hit._source.timestamp || 0));
 }
 
 function generateTimelineHtml(hits) {
@@ -275,8 +301,8 @@ function generateTimelineHtml(hits) {
     const isError = ev.type === 'error';
     const isWarn = ev.type === 'warning';
     const isContext = ev.type === 'context';
-    const dotClass = isError ? 'bg-red-500 ring-red-200' : isWarn ? 'bg-amber-500 ring-amber-200' : isContext ? 'bg-slate-300 ring-slate-200' : 'bg-slate-400 ring-slate-200';
-    const cardClass = isError ? 'border-red-200 bg-red-50' : isWarn ? 'border-amber-200 bg-amber-50' : isContext ? 'border-slate-200 bg-slate-50' : 'border-slate-200 bg-white';
+    const dotClass = isError ? 'bg-red-500 ring-red-200' : isWarn ? 'bg-amber-500 ring-amber-200' : isContext ? 'bg-sky-400 ring-sky-200' : 'bg-slate-400 ring-slate-200';
+    const cardClass = isError ? 'border-red-200 bg-red-50' : isWarn ? 'border-amber-200 bg-amber-50' : isContext ? 'border-sky-200 bg-sky-50' : 'border-slate-200 bg-white';
     html += '<div class="log-timeline-item relative mb-2">';
     html += '<span class="absolute -left-6 top-1.5 w-2.5 h-2.5 rounded-full ring-2 ' + dotClass + '" title="' + ev.type + '"></span>';
     html += '<details class="log-timeline-details rounded border shadow-sm ' + cardClass + '">';
@@ -285,7 +311,7 @@ function generateTimelineHtml(hits) {
     html += '<span class="rounded-full bg-slate-200 text-slate-800 px-2 py-0.5 text-xs font-medium">' + label + '</span>';
     if (isError) html += '<span class="rounded-full bg-red-600 text-white px-2 py-0.5 text-xs font-medium"><i class="fas fa-times-circle mr-1"></i>Error</span>';
     else if (isWarn) html += '<span class="rounded-full bg-amber-600 text-white px-2 py-0.5 text-xs font-medium"><i class="fas fa-exclamation-triangle mr-1"></i>Warning</span>';
-    else if (isContext) html += '<span class="rounded-full bg-slate-300 text-slate-700 px-2 py-0.5 text-xs font-medium">Context</span>';
+    else if (isContext) html += '<span class="rounded-full bg-sky-200 text-sky-800 px-2 py-0.5 text-xs font-medium">Context</span>';
     html += '<span class="text-sm text-slate-700 break-words flex-1 min-w-0">' + msg + '</span>';
     html += '<span class="text-slate-400 text-xs">Click to expand</span>';
     html += '</summary>';
@@ -307,14 +333,15 @@ function generateConnectorsServiceHtml(details) {
 }
 
 function generateEmailContent(container, uniqueDetails) {
+  var fields = getVisibleFields(uniqueDetails);
   let emailBody = 'Dear Team,\n\nPlease provide help regarding the following details:\n';
   if (uniqueDetails.gateway) emailBody += '- Gateway: ' + uniqueDetails.gateway + '\n';
-  if (uniqueDetails.payment_token) emailBody += '- Payment Token: ' + uniqueDetails.payment_token + '\n';
-  if (uniqueDetails.payment_original_amount) emailBody += '- Payment Original Amount: ' + uniqueDetails.payment_original_amount + '\n';
-  if (uniqueDetails.payment_currency_code) emailBody += '- Currency Code: ' + uniqueDetails.payment_currency_code + '\n';
-  if (uniqueDetails.payout_token) emailBody += '- Payout Token: ' + uniqueDetails.payout_token + '\n';
-  if (uniqueDetails.payout_original_amount) emailBody += '- Payout Original Amount: ' + uniqueDetails.payout_original_amount + '\n';
-  if (uniqueDetails.payout_currency_code) emailBody += '- Payout Currency Code: ' + uniqueDetails.payout_currency_code + '\n';
+  fields.forEach(function (field) {
+    if (field === 'gateway' || field === 'quarantined_item_id') return;
+    if (uniqueDetails[field]) {
+      emailBody += '- ' + field.replace(/_/g, ' ').replace(/\b\w/g, function (c) { return c.toUpperCase(); }) + ': ' + uniqueDetails[field] + '\n';
+    }
+  });
   if (uniqueDetails.quarantined_item_id) emailBody += '- Quarantined Item ID: ' + uniqueDetails.quarantined_item_id + '\n';
   emailBody += '\nThank you for your assistance!';
 
@@ -367,7 +394,7 @@ function runAnalysis(container) {
   results += '<div class="p-2 border-t border-slate-200 bg-slate-50/50">';
   results += '<div class="timeline-header flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">';
   results += '<span class="rounded bg-indigo-100 border border-indigo-200 px-2 py-1 text-slate-800 text-sm font-medium"><i class="fas fa-tachometer-alt mr-1"></i>Total Hits: ' + totalHits + '</span>';
-  results += '<span class="text-xs text-slate-500">Shown: all errors &amp; warnings (with previous and next log), plus first/last log per service, in chronological order. Click any entry for full log.</span>';
+  results += '<span class="text-xs text-slate-500">All logs in chronological order. <span class="text-red-500 font-medium">Red</span> = error, <span class="text-amber-500 font-medium">Amber</span> = warning, <span class="text-sky-500 font-medium">Blue</span> = adjacent to error/warning. Click any entry for full log.</span>';
   results += '</div>';
   results += '<div class="log-timeline-wrapper overflow-y-auto">' + generateTimelineHtml(hits) + '</div>';
   results += '</div></details>';
@@ -377,13 +404,12 @@ function runAnalysis(container) {
   results += '<div class="p-3 border-t border-slate-200 bg-slate-50/30"><div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="canvasPlaceholder"></div></div>';
   results += '</details>';
 
-  const sortedHits = [...hits].sort((a, b) => (a._source.timestamp || 0) - (b._source.timestamp || 0));
   let occurrencesHtml = '';
   let occurrenceIndex = 0;
   hits.forEach(hit => {
     const source = hit._source;
     if (source.level === 'error' || source.level === 'warning') {
-      occurrencesHtml += generateOccurrenceHtml(occurrenceIndex++, extractDetails(hit), hit, sortedHits);
+      occurrencesHtml += generateOccurrenceHtml(occurrenceIndex++, extractDetails(hit), hit);
     }
   });
 
@@ -408,11 +434,9 @@ function runAnalysis(container) {
   results += '<div class="p-3 border-t border-slate-200 bg-slate-50/30">' + labelListHtml + '</div></details>';
 
   const uniqueDetails = extractUniqueDetails(hits);
-  if (Object.keys(uniqueDetails).length > 0) {
-    results += '<details class="analyze-section mb-3 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden" open>';
-    results += '<summary class="analyze-section-summary cursor-pointer px-4 py-2.5 bg-slate-50 hover:bg-slate-100 font-semibold text-slate-800 flex items-center gap-2"><i class="fas fa-info-circle mr-1"></i>Important Details</summary>';
-    results += '<div class="p-3 border-t border-slate-200 bg-slate-50/30">' + generateDetailsTable(uniqueDetails) + '</div></details>';
-  }
+  results += '<details class="analyze-section mb-3 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden" open>';
+  results += '<summary class="analyze-section-summary cursor-pointer px-4 py-2.5 bg-slate-50 hover:bg-slate-100 font-semibold text-slate-800 flex items-center gap-2"><i class="fas fa-info-circle mr-1"></i>Important Details</summary>';
+  results += '<div class="p-3 border-t border-slate-200 bg-slate-50/30"><div class="flex justify-end mb-2"><button type="button" id="copyDetailsBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 text-xs font-medium transition shadow-sm"><i class="fas fa-copy"></i> Copy Details</button></div>' + generateDetailsTable(uniqueDetails) + '</div></details>';
   const connectorsDetails = extractConnectorsServiceDetails(hits);
   if (connectorsDetails.length > 0) {
     results += '<details class="analyze-section mb-3 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">';
@@ -494,12 +518,62 @@ function runAnalysis(container) {
   }
 
   generateEmailContent(container, uniqueDetails);
+  
+  // Attach copy button handler for details table
+  const copyDetailsBtn = document.getElementById('copyDetailsBtn');
+  if (copyDetailsBtn) {
+    copyDetailsBtn.addEventListener('click', function() {
+      const detailsSection = copyDetailsBtn.closest('.analyze-section');
+      const detailsTable = detailsSection ? detailsSection.querySelector('table') : null;
+      if (!detailsTable) return;
+      
+      // Extract table data as text
+      let text = '';
+      const rows = detailsTable.querySelectorAll('tr');
+      rows.forEach(function(row) {
+        const cells = row.querySelectorAll('td, th');
+        const rowData = Array.from(cells).map(function(cell) {
+          return (cell.textContent || '').trim();
+        });
+        if (rowData.length > 0) {
+          text += rowData.join('\t') + '\n';
+        }
+      });
+      
+      if (text && dom.copyToClipboard) {
+        dom.copyToClipboard(text.trim()).then(function(success) {
+          if (success && copyDetailsBtn) {
+            const originalHtml = copyDetailsBtn.innerHTML;
+            copyDetailsBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            copyDetailsBtn.classList.add('bg-indigo-700');
+            setTimeout(function() {
+              copyDetailsBtn.innerHTML = originalHtml;
+              copyDetailsBtn.classList.remove('bg-indigo-700');
+            }, 2000);
+          }
+        });
+      }
+    });
+  }
+}
+
+function clearAll(container) {
+  var r = root(container);
+  var logsEl = byId('logInput', r);
+  var resultsEl = byId('analysisResults', r);
+  var emailOutputEl = document.getElementById('emailOutput');
+  if (logsEl) logsEl.value = '';
+  if (resultsEl) resultsEl.innerHTML = '<span class="text-sm text-slate-600">Results will appear here...</span>';
+  if (emailOutputEl) { emailOutputEl.classList.add('hidden'); emailOutputEl.innerHTML = '<h4 class="text-lg font-semibold text-slate-800 mb-2">Generated Email:</h4><pre id="generatedEmail"></pre>'; }
+  destroyCharts();
 }
 
 function mount(container) {
   const r = root(container);
   const btn = byId('analyzeBtn', r);
+  const clearBtnEl = byId('clearBtn', r);
   if (btn) btn.addEventListener('click', function () { runAnalysis(container); });
+  if (clearBtnEl) clearBtnEl.addEventListener('click', function () { clearAll(container); });
 }
 
 function unmount() {

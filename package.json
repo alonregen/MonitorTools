@@ -1,1 +1,0 @@
-{"name":"monitor-tools","version":"1.0.0","private":true,"scripts":{"start":"node scripts/start-server.mjs"},"devDependencies":{"serve":"^14.2.4"},"dependencies":{"npm":"^11.10.0","run":"^1.5.0","test":"^3.3.0","then":"^0.0.1"}}
