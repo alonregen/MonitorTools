@@ -162,6 +162,172 @@
   content: '▾ ';
 }
 
+/* ── Smart Field Dropdown ────────────────────────────────── */
+.smart-dropdown {
+  position: relative;
+}
+.smart-dropdown-list {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 50;
+  min-width: 320px;
+  width: max-content;
+  max-width: min(480px, 90vw);
+  max-height: 380px;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-top: none;
+  border-radius: 0 0 0.5rem 0.5rem;
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.15);
+  display: none;
+}
+.smart-dropdown.open .smart-dropdown-list {
+  display: block;
+}
+.smart-dropdown-category {
+  padding: 0.5rem 0.875rem 0.3rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #64748b;
+  background: #f1f5f9;
+  border-top: 1px solid #e2e8f0;
+}
+.smart-dropdown-category:first-child {
+  border-top: none;
+}
+.smart-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  padding: 0.5rem 0.875rem;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: background 0.1s;
+  white-space: nowrap;
+}
+.smart-dropdown-item:hover,
+.smart-dropdown-item.active {
+  background: #eef2ff;
+}
+.smart-dropdown-item .field-name {
+  flex: 1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.8125rem;
+  font-weight: 500;
+}
+
+/* Field type badges */
+.field-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.625rem;
+  font-weight: 700;
+  padding: 0.15rem 0.45rem;
+  border-radius: 9999px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  line-height: 1.4;
+  flex-shrink: 0;
+}
+.field-badge-indigo  { background: #e0e7ff; color: #4338ca; }
+.field-badge-emerald { background: #d1fae5; color: #065f46; }
+.field-badge-amber   { background: #fef3c7; color: #92400e; }
+.field-badge-violet  { background: #ede9fe; color: #6d28d9; }
+.field-badge-rose    { background: #ffe4e6; color: #be123c; }
+.field-badge-cyan    { background: #cffafe; color: #0e7490; }
+
+/* Condition row layout */
+.condition-row {
+  display: grid;
+  grid-template-columns: 110px 1fr 180px 1fr auto;
+  gap: 0.5rem;
+  align-items: end;
+  padding: 0.75rem;
+  background: #f8fafc;
+  border-radius: 0.5rem;
+  border: 1px solid #e2e8f0;
+}
+@media (max-width: 900px) {
+  .condition-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Value area for between operator */
+.value-between-group {
+  display: flex;
+  gap: 0.375rem;
+  align-items: center;
+}
+.value-between-group input {
+  flex: 1;
+  min-width: 0;
+}
+
+/* Aggregations panel */
+.agg-panel-toggle {
+  cursor: pointer;
+  user-select: none;
+}
+.agg-panel-toggle::after {
+  content: '';
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-left: 0.5rem;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.2s;
+  vertical-align: middle;
+}
+.agg-panel[open] .agg-panel-toggle::after {
+  transform: rotate(-135deg);
+}
+.agg-template-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.5rem 1rem;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  border-radius: 0.5rem;
+  border: 1px solid #c7d2fe;
+  background: #eef2ff;
+  color: #4338ca;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.agg-template-btn:hover {
+  background: #e0e7ff;
+  border-color: #a5b4fc;
+}
+
+
+/* Aggregation configurator panels */
+#timeCompareConfig input[type="number"],
+#termsConfig input[type="number"] {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  text-align: center;
+}
+#timeCompareConfig select,
+#filtersConfig select,
+#termsConfig select {
+  flex: 1;
+  min-width: 0;
+}
+#filterValueRows .fb-label,
+#filterValueRows .fb-value {
+  font-size: 0.8125rem;
+}
+
+
 /* Maintenance Analyzed – result cards */
 #maintenanceResult article {
   break-inside: avoid;
