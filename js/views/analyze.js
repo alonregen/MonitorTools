@@ -643,6 +643,7 @@ function setupTimelineFullscreen() {
       contentSlot.appendChild(contentEl);
     }
     overlay.classList.remove('hidden');
+    overlay.style.display = '';
     overlay.focus();
     expandBtn.innerHTML = '<i class="fas fa-compress"></i>';
     expandBtn.title = 'Currently in full screen (click Exit in overlay)';
@@ -663,11 +664,13 @@ function setupTimelineFullscreen() {
       escapeHandler = null;
     }
     var contentSlot = overlay.querySelector('.timeline-fs-content');
-    if (contentSlot && contentEl && detailsEl) {
-      detailsEl.appendChild(contentEl);
+    var targetDetails = document.querySelector('.analyze-section-timeline');
+    if (contentSlot && contentEl && targetDetails && document.body.contains(targetDetails)) {
+      targetDetails.appendChild(contentEl);
     }
     overlay.classList.add('hidden');
-    if (expandBtn) {
+    overlay.style.display = 'none';
+    if (expandBtn && document.body.contains(expandBtn)) {
       expandBtn.innerHTML = '<i class="fas fa-expand"></i>';
       expandBtn.title = 'Expand to full screen';
     }
@@ -776,6 +779,21 @@ function setupAiNaturalLanguageSearch() {
       btn.click();
     }
   });
+
+  input.addEventListener('input', debounce(function () {
+    if ((input.value || '').trim() === '') {
+      var wrapper = document.getElementById('logTimelineWrapper');
+      var countEl = document.getElementById('timelineSearchCount');
+      var timelineInput = document.getElementById('timelineSearchInput');
+      if (wrapper) {
+        var items = wrapper.querySelectorAll('.log-timeline-item');
+        items.forEach(function (item) { item.classList.remove('timeline-search-hidden'); });
+      }
+      if (countEl) countEl.classList.add('hidden');
+      updateStatus('');
+      if (timelineInput) timelineInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+  }, 150));
 }
 
 var AI_LOG_QA_SYSTEM = 'You are a log analysis assistant. The user will provide log data and ask a question. Answer based ONLY on the log content. Be concise and direct. If the logs do not contain enough information, say so.';
@@ -1027,11 +1045,7 @@ function runAnalysis(container) {
   results += '<span class="rounded bg-indigo-100 border border-indigo-200 px-2 py-1 text-slate-800 text-sm font-medium"><i class="fas fa-tachometer-alt mr-1"></i>Total Hits: ' + totalHits + '</span>';
   results += '<span class="text-xs text-slate-500">All logs in chronological order. <span class="text-red-500 font-medium">Red</span> = error, <span class="text-amber-500 font-medium">Amber</span> = warning, <span class="text-sky-500 font-medium">Blue</span> = adjacent to error/warning. Click any entry for full log.</span>';
   results += '</div>';
-  results += '<div class="timeline-search-bar mb-2">';
-  results += '<input type="text" id="timelineSearchInput" placeholder="Search all logs (time, label, message, level, params)…" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" autocomplete="off" />';
-  results += '<span id="timelineSearchCount" class="hidden text-xs text-slate-500 mt-1"></span>';
-  results += '</div>';
-  results += '<div class="ai-natural-search-bar mb-2 mt-3 p-4 bg-violet-50 border border-violet-200 rounded-xl">';
+  results += '<div class="ai-natural-search-bar mb-3 p-4 bg-violet-50 border border-violet-200 rounded-xl">';
   results += '<label class="block text-sm font-semibold text-violet-900 mb-2"><i class="fas fa-robot text-violet-600 mr-1"></i> AI Natural Language Search</label>';
   results += '<p class="text-xs text-violet-700 mb-2">Search logs with natural language (e.g. payment errors, timeouts, collect_service failures).</p>';
   results += '<div class="flex flex-wrap items-center gap-2 mb-2">';
@@ -1040,6 +1054,10 @@ function runAnalysis(container) {
   results += '<button type="button" id="aiNaturalSearchBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-violet-600 hover:bg-violet-700 text-white px-4 py-2 text-sm font-medium transition shadow-sm whitespace-nowrap disabled:opacity-50"><i class="fas fa-search"></i> AI Search</button>';
   results += '</div>';
   results += '<span id="aiNaturalSearchStatus" class="text-xs text-violet-600"></span>';
+  results += '</div>';
+  results += '<div class="timeline-search-bar mb-2">';
+  results += '<input type="text" id="timelineSearchInput" placeholder="Search all logs (time, label, message, level, params)…" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" autocomplete="off" />';
+  results += '<span id="timelineSearchCount" class="hidden text-xs text-slate-500 mt-1"></span>';
   results += '</div>';
   results += '<div class="log-timeline-wrapper overflow-y-auto" id="logTimelineWrapper">' + generateTimelineHtml(hits) + '</div>';
   results += '</div></details>';
@@ -1250,6 +1268,11 @@ function mount(container) {
 
 function unmount() {
   destroyCharts();
+  var overlay = document.getElementById('timelineFullscreenOverlay');
+  if (overlay) {
+    overlay.style.display = 'none';
+    overlay.classList.add('hidden');
+  }
 }
 
 var analyzeView = {
