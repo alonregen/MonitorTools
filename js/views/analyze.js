@@ -260,7 +260,9 @@ function generateDetailsTable(uniqueDetails) {
     var icon = fieldIcons[field] || 'fas fa-question-circle';
     var value = uniqueDetails[field] || '-----';
     var valueCls = uniqueDetails[field] ? '' : ' text-slate-400 italic';
-    html += '<tr class="odd:bg-slate-50"><td class="border border-slate-300 px-3 py-2 text-sm"><i class="' + icon + ' mr-1"></i>' + field.replace(/_/g, ' ').toUpperCase() + '</td><td class="border border-slate-300 px-3 py-2 text-sm' + valueCls + '">' + dom.escapeHtml(value) + '</td></tr>';
+    var isFailureMessage = field.includes('failure_message');
+    var wrapCls = isFailureMessage ? ' break-words whitespace-normal max-w-md' : '';
+    html += '<tr class="odd:bg-slate-50"><td class="border border-slate-300 px-3 py-2 text-sm"><i class="' + icon + ' mr-1"></i>' + field.replace(/_/g, ' ').toUpperCase() + '</td><td class="border border-slate-300 px-3 py-2 text-sm' + valueCls + wrapCls + '">' + dom.escapeHtml(value) + '</td></tr>';
   });
   html += '</tbody></table>';
   return html;
@@ -289,12 +291,37 @@ function buildTimelineEvents(hits) {
   });
 }
 
+/** Build searchable text from log source for fast client-side filtering */
+function buildSearchableText(s) {
+  var parts = [
+    s.time || '',
+    s.label || '',
+    s.level || '',
+    s.message || ''
+  ];
+  if (s.params != null) {
+    var p = typeof s.params === 'string' ? s.params : JSON.stringify(s.params);
+    parts.push(p.length > 2000 ? p.slice(0, 2000) : p);
+  }
+  return parts.join(' ').toLowerCase();
+}
+
+/** Escape string for safe use in HTML attribute */
+function escapeAttr(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
 function generateTimelineHtml(hits) {
   const events = buildTimelineEvents(hits);
   if (events.length === 0) return '<p class="text-slate-600 text-sm">No timeline events.</p>';
   let html = '<div class="log-timeline relative pl-6 border-l-2 border-slate-200 border-solid">';
   events.forEach((ev) => {
     const s = ev.hit._source;
+    const searchable = escapeAttr(buildSearchableText(s));
     const time = s.time || 'N/A';
     const label = dom.escapeHtml(s.label || 'N/A');
     const msg = dom.escapeHtml((s.message || '').slice(0, 120)) + ((s.message || '').length > 120 ? '…' : '');
@@ -303,7 +330,7 @@ function generateTimelineHtml(hits) {
     const isContext = ev.type === 'context';
     const dotClass = isError ? 'bg-red-500 ring-red-200' : isWarn ? 'bg-amber-500 ring-amber-200' : isContext ? 'bg-sky-400 ring-sky-200' : 'bg-slate-400 ring-slate-200';
     const cardClass = isError ? 'border-red-200 bg-red-50' : isWarn ? 'border-amber-200 bg-amber-50' : isContext ? 'border-sky-200 bg-sky-50' : 'border-slate-200 bg-white';
-    html += '<div class="log-timeline-item relative mb-2">';
+    html += '<div class="log-timeline-item relative mb-2" data-searchable="' + searchable + '">';
     html += '<span class="absolute -left-6 top-1.5 w-2.5 h-2.5 rounded-full ring-2 ' + dotClass + '" title="' + ev.type + '"></span>';
     html += '<details class="log-timeline-details rounded border shadow-sm ' + cardClass + '">';
     html += '<summary class="cursor-pointer p-2 list-none flex flex-wrap items-center gap-2 [&::-webkit-details-marker]:hidden">';
@@ -320,6 +347,55 @@ function generateTimelineHtml(hits) {
   });
   html += '</div>';
   return html;
+}
+
+/** Debounce helper for efficient real-time search */
+function debounce(fn, ms) {
+  var t;
+  return function () {
+    clearTimeout(t);
+    t = setTimeout(fn, ms);
+  };
+}
+
+/** Setup smart real-time search for Log flow timeline */
+function setupTimelineSearch() {
+  var input = document.getElementById('timelineSearchInput');
+  var wrapper = document.getElementById('logTimelineWrapper');
+  var countEl = document.getElementById('timelineSearchCount');
+  if (!input || !wrapper) return;
+
+  var items = wrapper.querySelectorAll('.log-timeline-item');
+  var total = items.length;
+
+  function filterTimeline() {
+    var q = (input.value || '').trim().toLowerCase();
+    var terms = q ? q.split(/\s+/).filter(Boolean) : [];
+    var visible = 0;
+
+    items.forEach(function (item) {
+      var searchable = (item.getAttribute('data-searchable') || '').toLowerCase();
+      var match = terms.length === 0 || terms.every(function (t) { return searchable.indexOf(t) !== -1; });
+      item.classList.toggle('timeline-search-hidden', !match);
+      if (match) visible++;
+    });
+
+    if (q && countEl) {
+      countEl.classList.remove('hidden');
+      countEl.textContent = 'Showing ' + visible + ' of ' + total + ' logs';
+    } else if (countEl) {
+      countEl.classList.add('hidden');
+    }
+  }
+
+  input.addEventListener('input', debounce(filterTimeline, 80));
+  input.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      input.value = '';
+      filterTimeline();
+      input.blur();
+    }
+  });
 }
 
 function generateConnectorsServiceHtml(details) {
@@ -396,7 +472,11 @@ function runAnalysis(container) {
   results += '<span class="rounded bg-indigo-100 border border-indigo-200 px-2 py-1 text-slate-800 text-sm font-medium"><i class="fas fa-tachometer-alt mr-1"></i>Total Hits: ' + totalHits + '</span>';
   results += '<span class="text-xs text-slate-500">All logs in chronological order. <span class="text-red-500 font-medium">Red</span> = error, <span class="text-amber-500 font-medium">Amber</span> = warning, <span class="text-sky-500 font-medium">Blue</span> = adjacent to error/warning. Click any entry for full log.</span>';
   results += '</div>';
-  results += '<div class="log-timeline-wrapper overflow-y-auto">' + generateTimelineHtml(hits) + '</div>';
+  results += '<div class="timeline-search-bar mb-2">';
+  results += '<input type="text" id="timelineSearchInput" placeholder="Search all logs (time, label, message, level, params)…" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" autocomplete="off" />';
+  results += '<span id="timelineSearchCount" class="hidden text-xs text-slate-500 mt-1"></span>';
+  results += '</div>';
+  results += '<div class="log-timeline-wrapper overflow-y-auto" id="logTimelineWrapper">' + generateTimelineHtml(hits) + '</div>';
   results += '</div></details>';
 
   results += '<details class="analyze-section mb-3 rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden" open>';
@@ -450,6 +530,8 @@ function runAnalysis(container) {
 
   results += '</div>';
   resultsEl.innerHTML = results;
+
+  setupTimelineSearch();
 
   const placeholder = document.getElementById('canvasPlaceholder');
   if (placeholder) placeholder.innerHTML = '';

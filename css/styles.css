@@ -110,6 +110,9 @@
 .log-timeline-item:last-child {
   margin-bottom: 0;
 }
+.log-timeline-item.timeline-search-hidden {
+  display: none !important;
+}
 
 /* Analyze results – less blank white space */
 #logOutput,
