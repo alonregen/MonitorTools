@@ -1,0 +1,168 @@
+/**
+ * Monitor Tools – overrides and view-specific styles (Tailwind CDN).
+ */
+
+.nav-link.active {
+  background-color: #6366f1;
+  color: #fff;
+}
+.nav-link.active:hover {
+  background-color: #4f46e5;
+  color: #fff;
+}
+
+/* Home page tool links – ensure visible when Tailwind CDN misses dynamic classes */
+#app a[href="#/nested"],
+#app a[href="#/email"],
+#app a[href="#/tokens"],
+#app a[href="#/analyze"],
+#app a[href="#/maintenance"],
+#app a[href="#/molpay-maintenance"] {
+  background-color: #6366f1;
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  font-weight: 500;
+  padding: 0.75rem 1.5rem;
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  transition: background-color 0.2s;
+}
+#app a[href="#/nested"]:hover,
+#app a[href="#/email"]:hover,
+#app a[href="#/tokens"]:hover,
+#app a[href="#/analyze"]:hover,
+#app a[href="#/maintenance"]:hover,
+#app a[href="#/molpay-maintenance"]:hover {
+  background-color: #4f46e5;
+  color: #fff;
+}
+
+.token-container {
+  display: none;
+}
+.token-container.visible,
+.token-container[style*="flex"] {
+  display: block !important;
+}
+.token-container.visible[style*="flex"] {
+  display: flex !important;
+}
+
+.chart-container {
+  position: relative;
+  height: 300px;
+  width: 100%;
+}
+
+#canvasPlaceholder {
+  min-height: 300px;
+}
+
+.email-output table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid #cbd5e1;
+  margin: 0.5rem 0;
+}
+.email-output th {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font-size: 0.875rem;
+  font-weight: 600;
+}
+.email-output td {
+  border: 1px solid #cbd5e1;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.875rem;
+}
+
+/* Analyze Logs – collapsible sections */
+.analyze-section summary {
+  list-style: none;
+}
+.analyze-section summary::-webkit-details-marker {
+  display: none;
+}
+.analyze-section-summary::after {
+  content: '';
+  display: inline-block;
+  width: 0.5rem;
+  height: 0.5rem;
+  margin-left: auto;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.2s;
+}
+.analyze-section[open] .analyze-section-summary::after {
+  transform: rotate(-135deg);
+}
+
+/* Log flow timeline */
+.log-timeline {
+  margin-left: 0;
+}
+.log-timeline-item:last-child {
+  margin-bottom: 0;
+}
+
+/* Analyze results – less blank white space */
+#logOutput,
+#analysisResults {
+  max-width: 100%;
+}
+.analyze-results-wrapper {
+  margin-top: 0.5rem;
+}
+.analyze-results-wrapper .analyze-section {
+  margin-bottom: 0.75rem;
+}
+.analyze-results-wrapper .analyze-section:last-child {
+  margin-bottom: 0;
+}
+/* Timeline: only the list scrolls; Total Hits stays fixed above */
+.analyze-section-timeline .timeline-header {
+  flex-shrink: 0;
+}
+.analyze-section-timeline .log-timeline-wrapper {
+  max-height: 280px;
+  padding: 0.125rem 0;
+  -webkit-overflow-scrolling: touch;
+}
+.analyze-section-errors .errors-section-body {
+  padding: 0.125rem 0;
+}
+.occurrence-card + .occurrence-card {
+  margin-top: 0;
+}
+.log-timeline-item {
+  margin-bottom: 0.5rem;
+}
+.log-timeline-details summary::-webkit-details-marker,
+.context-log-block summary::-webkit-details-marker {
+  display: none;
+}
+.log-timeline-details[open] summary {
+  border-bottom: 1px solid rgba(0,0,0,0.06);
+}
+.context-log-block summary::before {
+  content: '▸ ';
+  font-size: 0.65rem;
+  color: #94a3b8;
+}
+.context-log-block[open] summary::before {
+  content: '▾ ';
+}
+
+/* Maintenance Analyzed – result cards */
+#maintenanceResult article {
+  break-inside: avoid;
+}
+#maintenanceResult .maintenance-notes-box p:last-child {
+  word-break: break-word;
+}
