@@ -1,0 +1,20 @@
+{
+  "name": "monitor-tools",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.0",
+    "vitest": "^1.2.0"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/dsl/index.js",
+      "types": "./dist/dsl/index.d.ts"
+    }
+  }
+}

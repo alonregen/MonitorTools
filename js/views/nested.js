@@ -254,6 +254,30 @@
     + '        <input type="radio" name="queryMethod" id="aiQueryRadio" value="ai" checked class="rounded-full border-slate-300 text-primary focus:ring-primary">'
     + '        <span class="text-sm font-medium text-slate-700"><i class="fas fa-robot mr-1"></i>By AI</span>'
     + '      </label>'
+    + '      <label class="flex items-center gap-2 cursor-pointer">'
+    + '        <input type="radio" name="queryMethod" id="textQueryRadio" value="text" class="rounded-full border-slate-300 text-primary focus:ring-primary">'
+    + '        <span class="text-sm font-medium text-slate-700"><i class="fas fa-paste mr-1"></i>From Text</span>'
+    + '      </label>'
+    + '    </div>'
+    + '  </div>'
+
+    // ── By Text (message/params → conditions) ──
+    + '  <div id="textQuerySection" style="display:none;">'
+    + '    <div class="mb-4">'
+    + '      <label for="textQueryTimeFrame" class="' + labelCls + '"><i class="fas fa-clock mr-1"></i> Alert Time Frame:</label>'
+    +        timeOptionsHTML('textQueryTimeFrame')
+    + '    </div>'
+    + '    <label class="' + labelCls + '"><i class="fas fa-paste mr-1"></i> Paste message or params (JSON):</label>'
+    + '    <p class="text-xs text-slate-500 mb-2">Paste a log message, or JSON params (e.g. {"payment_token":"xxx","message":"PAYMENT_FAILED"}). Converts to a working query.</p>'
+    + '    <textarea class="' + inputCls + ' mb-3 resize-none" id="textQueryInput" rows="6" placeholder="e.g. PAYMENT_FAILED timeout\nor\n{\"payment_token\": \"xxx\", \"gateway\": \"stripe\"}"></textarea>'
+    + '    <div class="flex gap-2 mb-3">'
+    + '      <button type="button" id="textConvertBtn" class="' + btnPrimary + '"><i class="fas fa-magic"></i> Convert to Query</button>'
+    + '      <button type="button" id="textApplyBtn" class="' + btnPrimary + ' bg-emerald-600 hover:bg-emerald-700"><i class="fas fa-check"></i> Apply to Conditions</button>'
+    + '    </div>'
+    + '    <div id="textQueryOutput" class="hidden mt-3 p-3 rounded-lg bg-slate-100 border border-slate-200">'
+    + '      <p class="text-xs font-semibold text-slate-600 mb-2">Generated DSL:</p>'
+    + '      <pre id="textQueryDsl" class="text-xs font-mono bg-white p-3 rounded border border-slate-200 overflow-x-auto max-h-48 overflow-y-auto"></pre>'
+    + '      <button type="button" id="textCopyDslBtn" class="mt-2 inline-flex gap-1.5 rounded-lg bg-slate-600 hover:bg-slate-700 text-white px-3 py-1.5 text-xs font-medium transition"><i class="fas fa-copy"></i> Copy DSL</button>'
     + '    </div>'
     + '  </div>'
 
@@ -817,8 +841,9 @@
     var conditions = readConditions(container);
 
     var aggregations = null;
+    var aggPanel = r.querySelector('.agg-panel');
     var aggInput = byId('aggJsonInput', r);
-    if (aggInput && aggInput.value.trim()) {
+    if (aggPanel && aggPanel.open && aggInput && aggInput.value.trim()) {
       try {
         aggregations = JSON.parse(aggInput.value.trim());
       } catch (e) {
@@ -872,17 +897,21 @@
     var condSection = byId('conditionQuerySection', r);
     var jsonSection = byId('jsonQuerySection', r);
     var aiSection   = byId('aiQuerySection', r);
+    var textSection = byId('textQuerySection', r);
     var condRadio   = byId('conditionQueryRadio', r);
     var jsonRadio   = byId('jsonQueryRadio', r);
     var aiRadio     = byId('aiQueryRadio', r);
+    var textRadio   = byId('textQueryRadio', r);
 
     var show = 'condition';
     if (jsonRadio && jsonRadio.checked) show = 'json';
     if (aiRadio && aiRadio.checked) show = 'ai';
+    if (textRadio && textRadio.checked) show = 'text';
 
     if (condSection) condSection.style.display = show === 'condition' ? 'block' : 'none';
     if (jsonSection) jsonSection.style.display = show === 'json' ? 'block' : 'none';
     if (aiSection) aiSection.style.display = show === 'ai' ? 'block' : 'none';
+    if (textSection) textSection.style.display = show === 'text' ? 'block' : 'none';
 
     if (show === 'ai') initAiSection(container);
   }
@@ -1140,9 +1169,14 @@
     var condRadio = byId('conditionQueryRadio', r);
     var jsonRadio = byId('jsonQueryRadio', r);
     var aiRadio   = byId('aiQueryRadio', r);
+    var textRadio = byId('textQueryRadio', r);
     if (condRadio) condRadio.addEventListener('change', function () { handleQueryMethodChange(container); });
     if (jsonRadio) jsonRadio.addEventListener('change', function () { handleQueryMethodChange(container); });
     if (aiRadio)   aiRadio.addEventListener('change', function () { handleQueryMethodChange(container); });
+    if (textRadio) textRadio.addEventListener('change', function () { handleQueryMethodChange(container); });
+
+    // By Text convert + apply
+    mountTextQuerySection(container);
 
     // By JSON convert + copy
     var convertJsonQueryBtn = byId('convertJsonQueryBtn', r);
@@ -1462,6 +1496,162 @@
 
   function escapeHtml(str) {
     return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
+  var lastTextPlan = null;
+
+  // Fields to skip – unique IDs or non-filterable (matches OpenSearch schema)
+  var SKIP_FIELDS = [
+    'operation_id', 'source_operation_id', 'id', 'uuid', 'request_id', 'correlation_id', 'trace_id',
+    'session_id', '_id', 'timestamp', 'timestamp_ns', 'created_at', 'updated_at', 'time'
+  ];
+
+  function isUuidLike(val) {
+    if (typeof val !== 'string') return false;
+    var s = String(val).trim();
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(s) ||
+           /^[0-9a-f]{32}$/i.test(s);
+  }
+
+  function collectKvFromValue(val, out) {
+    if (!val) return;
+    if (Array.isArray(val)) {
+      val.forEach(function (item) { collectKvFromValue(item, out); });
+    } else if (typeof val === 'object') {
+      Object.keys(val).forEach(function (k) {
+        var v = val[k];
+        if (v == null || v === '') return;
+        if (typeof v === 'object' || Array.isArray(v)) {
+          collectKvFromValue(v, out);
+          return;
+        }
+        var strVal = String(v).trim();
+        if (!strVal || strVal === 'undefined' || strVal === 'null') return;
+        if (SKIP_FIELDS.indexOf(k) !== -1) return;
+        if (isUuidLike(strVal)) return;
+        out.push({ key: k, value: strVal });
+      });
+    }
+  }
+
+  function textToConditions(text) {
+    var must = [];
+    var trimmed = (text || '').trim();
+    if (!trimmed) return null;
+
+    // OpenSearch top-level text fields (from prd-logs-* mappings)
+    var topLevelFields = ['message', 'label', 'level', 'tags', 'source', 'moduleName', 'filename', 'function', 'instance_id'];
+    // Keys that appear inside params JSON (not top-level) – search params field
+    var paramsSemanticFields = ['status', 'error', 'type', 'payment_token', 'payout_token', 'refund_token', 'gateway', 'reference_id', 'payment_failure_code', 'payout_failure_code', 'quarantined_item_id'];
+
+    var parsed = null;
+    try {
+      parsed = JSON.parse(trimmed);
+    } catch (e1) {
+      try {
+        var jsonStr = trimmed
+          .replace(/'([^']*)'/g, '"$1"')
+          .replace(/([{,]\s*)([a-zA-Z_][a-zA-Z0-9_]*)\s*:/g, '$1"$2":');
+        parsed = JSON.parse(jsonStr);
+      } catch (e2) {
+        must.push({ field: 'message', op: 'phrase', value: trimmed });
+        return { must: must, must_not: [], timeframe: 'now-1h' };
+      }
+    }
+
+    var pairs = [];
+    collectKvFromValue(parsed, pairs);
+
+    var hasParamsContext = pairs.some(function (p) {
+      return paramsSemanticFields.indexOf(p.key) !== -1;
+    });
+
+    var seen = {};
+    pairs.forEach(function (p) {
+      var k = p.key;
+      var v = p.value;
+      var sig = k + '\0' + v;
+      if (seen[sig]) return;
+      seen[sig] = true;
+
+      if (hasParamsContext && k === 'message') {
+        must.push({ field: 'params', op: 'phrase', value: v });
+      } else if (topLevelFields.indexOf(k) !== -1) {
+        var useExact = ['level', 'label', 'tags', 'source', 'moduleName', 'filename', 'function', 'instance_id'].indexOf(k) !== -1;
+        must.push({ field: k, op: useExact ? 'exact' : 'phrase', value: v });
+      } else if (paramsSemanticFields.indexOf(k) !== -1) {
+        must.push({ field: 'params', op: 'contains', value: v });
+      } else {
+        must.push({ field: 'params', op: 'contains', value: v });
+      }
+    });
+
+    if (must.length === 0) return null;
+    return { must: must, must_not: [], timeframe: 'now-1h' };
+  }
+
+  function mountTextQuerySection(container) {
+    var r = root(container);
+    var inputEl = byId('textQueryInput', r);
+    var convertBtn = byId('textConvertBtn', r);
+    var applyBtn = byId('textApplyBtn', r);
+    var outputWrap = byId('textQueryOutput', r);
+    var dslEl = byId('textQueryDsl', r);
+    var copyDslBtn = byId('textCopyDslBtn', r);
+    var tfEl = byId('textQueryTimeFrame', r);
+
+    if (!convertBtn || !inputEl) return;
+
+    convertBtn.addEventListener('click', function () {
+      var text = inputEl.value.trim();
+      if (!text) return;
+
+      var plan = textToConditions(text);
+      if (!plan) return;
+
+      lastTextPlan = plan;
+      plan.timeframe = (tfEl && tfEl.value) ? tfEl.value : 'now-1h';
+
+      var compiler = getCompiler();
+      if (!compiler) return;
+
+      var conditions = [];
+      (plan.must || []).forEach(function (c) {
+        conditions.push({ clause: 'must', field: c.field, operator: c.op, value: c.value });
+      });
+      (plan.must_not || []).forEach(function (c) {
+        conditions.push({ clause: 'must_not', field: c.field, operator: c.op, value: c.value });
+      });
+
+      var dsl = compiler.compile(conditions, plan.timeframe);
+      var dslStr = JSON.stringify(dsl, null, 2);
+
+      if (outputWrap) outputWrap.classList.remove('hidden');
+      if (dslEl) dslEl.textContent = dslStr;
+    });
+
+    applyBtn.addEventListener('click', function () {
+      if (!lastTextPlan) return;
+      lastAiPlan = { plan: lastTextPlan, must: lastTextPlan.must, must_not: lastTextPlan.must_not, timeframe: lastTextPlan.timeframe };
+      applyAiPlanToConditions(container);
+    });
+
+    if (copyDslBtn) {
+      copyDslBtn.addEventListener('click', function () {
+        var dsl = dslEl ? dslEl.textContent : '';
+        if (!dsl) return;
+        var dom = window.App && window.App.dom;
+        if (dom && dom.copyToClipboard) {
+          dom.copyToClipboard(dsl).then(function (ok) {
+            if (ok) {
+              var orig = copyDslBtn.innerHTML;
+              copyDslBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+              setTimeout(function () { copyDslBtn.innerHTML = orig; }, 2000);
+            }
+          });
+        }
+      });
+    }
   }
 
   function applyAiPlanToConditions(container) {

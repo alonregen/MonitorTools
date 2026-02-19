@@ -1,6 +1,6 @@
 /**
  * Query Compiler – converts UI conditions into OpenSearch Query DSL.
- * Depends on window.App.fieldCatalog.
+ * Static JS, no build required. Per https://docs.opensearch.org/latest/query-dsl/
  */
 (function (global) {
   'use strict';
@@ -45,43 +45,25 @@
   }
 
   function buildRangeClause(field, operator, value, value2) {
-    var obj = {};
-    var rangeParams = { boost: 1 };
-
+    var rangeParams = {};
     if (operator === 'between') {
-      rangeParams.from = value;
-      rangeParams.to = value2 || 'now';
-      rangeParams.include_lower = true;
-      rangeParams.include_upper = true;
+      rangeParams.gte = value;
+      rangeParams.lte = value2 || 'now';
     } else if (operator === 'gte') {
-      rangeParams.from = value;
-      rangeParams.to = null;
-      rangeParams.include_lower = true;
-      rangeParams.include_upper = true;
+      rangeParams.gte = value;
     } else if (operator === 'lte') {
-      rangeParams.from = null;
-      rangeParams.to = value;
-      rangeParams.include_lower = true;
-      rangeParams.include_upper = true;
+      rangeParams.lte = value;
     } else if (operator === 'gt') {
-      rangeParams.from = value;
-      rangeParams.to = null;
-      rangeParams.include_lower = false;
-      rangeParams.include_upper = true;
+      rangeParams.gt = value;
     } else if (operator === 'lt') {
-      rangeParams.from = null;
-      rangeParams.to = value;
-      rangeParams.include_lower = true;
-      rangeParams.include_upper = false;
+      rangeParams.lt = value;
     } else if (operator === 'eq') {
-      rangeParams.from = value;
-      rangeParams.to = value;
-      rangeParams.include_lower = true;
-      rangeParams.include_upper = true;
+      rangeParams.gte = value;
+      rangeParams.lte = value;
     } else if (operator === 'neq') {
       return null;
     }
-
+    var obj = {};
     obj[field] = rangeParams;
     return { range: obj };
   }
@@ -100,7 +82,7 @@
     var result = { must: [], must_not: [] };
     var fieldMeta = getCatalog().getByName(cond.field);
     var fieldName = cond.field;
-    var op = cond.operator;
+    var op = cond.operator || cond.op;
     var val = cond.value;
     var val2 = cond.value2;
     var clause = cond.clause; // 'must' or 'must_not'
@@ -145,17 +127,14 @@
   }
 
   /**
-   * Build the time range filter clause.
+   * Build the time range filter clause. OpenSearch uses gte/lte.
    */
   function buildTimeRange(timeframe) {
     return {
       range: {
         time: {
-          from: timeframe,
-          to: 'now',
-          include_lower: true,
-          include_upper: true,
-          boost: 1
+          gte: timeframe,
+          lte: 'now'
         }
       }
     };

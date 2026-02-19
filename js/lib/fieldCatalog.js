@@ -1,6 +1,7 @@
 /**
- * Field Catalog – embedded metadata derived from prd-logs-* mapping.
- * Provides field lookup, search filtering, and per-type operator lists.
+ * Field Catalog – metadata from prd-logs-* OpenSearch mappings.
+ * Only includes fields that exist in the index. Provides field lookup,
+ * search filtering, and per-type operator lists.
  */
 (function (global) {
   'use strict';
