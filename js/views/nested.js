@@ -243,7 +243,7 @@
     + '    <p class="' + labelCls + '">Choose Query Method:</p>'
     + '    <div class="flex flex-wrap gap-4">'
     + '      <label class="flex items-center gap-2 cursor-pointer">'
-    + '        <input type="radio" name="queryMethod" id="conditionQueryRadio" value="condition" checked class="rounded-full border-slate-300 text-primary focus:ring-primary">'
+    + '        <input type="radio" name="queryMethod" id="conditionQueryRadio" value="condition" class="rounded-full border-slate-300 text-primary focus:ring-primary">'
     + '        <span class="text-sm font-medium text-slate-700">By Conditions</span>'
     + '      </label>'
     + '      <label class="flex items-center gap-2 cursor-pointer">'
@@ -251,7 +251,7 @@
     + '        <span class="text-sm font-medium text-slate-700">By JSON</span>'
     + '      </label>'
     + '      <label class="flex items-center gap-2 cursor-pointer">'
-    + '        <input type="radio" name="queryMethod" id="aiQueryRadio" value="ai" class="rounded-full border-slate-300 text-primary focus:ring-primary">'
+    + '        <input type="radio" name="queryMethod" id="aiQueryRadio" value="ai" checked class="rounded-full border-slate-300 text-primary focus:ring-primary">'
     + '        <span class="text-sm font-medium text-slate-700"><i class="fas fa-robot mr-1"></i>By AI</span>'
     + '      </label>'
     + '    </div>'
@@ -1569,7 +1569,7 @@
 
   var nestedView = {
     route: 'nested',
-    navLabel: 'Nested Search Query Builder',
+    navLabel: 'Monitor Query Builder',
     render: render,
     mount: mount
   };

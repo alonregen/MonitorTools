@@ -12,7 +12,7 @@ var homeView = {
         <p class="text-slate-600 mb-8">This site offers various tools for log analysis and more.</p>
         <div class="flex flex-col sm:flex-row flex-wrap gap-4 justify-center">
           <a href="#/nested" class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-primary-dark text-white font-medium py-3 px-6 shadow-sm transition">
-            <i class="fas fa-sitemap"></i> Nested Search Query Builder
+            <i class="fas fa-sitemap"></i> Monitor Query Builder
           </a>
           <a href="#/email" class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-primary-dark text-white font-medium py-3 px-6 shadow-sm transition">
             <i class="fas fa-envelope"></i> Email Generator

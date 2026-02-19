@@ -6,7 +6,7 @@
   var views = window.MonitorToolsViews || {};
   var routes = [
     { path: 'home', view: views.homeView, title: 'HOME Page' },
-    { path: 'nested', view: views.nestedView, title: 'Nested Search Query Builder' },
+    { path: 'nested', view: views.nestedView, title: 'Monitor Query Builder' },
     { path: 'email', view: views.emailView, title: 'Email Generator' },
     { path: 'tokens', view: views.tokensView, title: 'Tokens Generator' },
     { path: 'analyze', view: views.analyzeView, title: 'Analyze Logs' }
