@@ -113,6 +113,15 @@
 .log-timeline-item.timeline-search-hidden {
   display: none !important;
 }
+
+/* Label filter chips in timeline */
+.timeline-label-chip {
+  user-select: none;
+}
+.timeline-label-chip--out {
+  text-decoration: line-through;
+  opacity: 0.85;
+}
 .log-timeline-summary {
   display: grid;
   grid-template-columns: auto auto minmax(0, 1fr) auto;
