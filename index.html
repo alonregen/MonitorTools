@@ -17,7 +17,12 @@
         'group', 'rounded-2xl', 'bg-gradient-to-br', 'from-purple-50', 'to-violet-50', 'border-2', 'border-purple-200',
         'p-6', 'shadow-md', 'hover:shadow-xl', 'hover:border-purple-400', 'hover:-translate-y-1',
         'transition-all', 'duration-300', 'w-14', 'h-14', 'from-purple-500', 'to-violet-600',
-        'group-hover:scale-110', 'transition-transform', 'text-xl', 'group-hover:text-purple-700', 'transition-colors'
+        'group-hover:scale-110', 'transition-transform', 'text-xl', 'group-hover:text-purple-700', 'transition-colors',
+        'fixed', 'inset-0', 'z-\[100\]', 'hidden', 'bg-black/50', 'flex', 'items-center', 'justify-center', 'p-4',
+        'pointer-events-none', 'pointer-events-auto', 'rounded-xl', 'shadow-xl', 'max-w-md', 'w-full', 'max-h-\[90vh\]',
+        'overflow-y-auto', 'border-b', 'border-slate-200', 'text-lg', 'font-semibold', 'text-slate-800',
+        'focus:ring-2', 'focus:ring-primary', 'focus:border-primary', 'bg-emerald-50', 'text-emerald-700',
+        'bg-red-50', 'text-red-700'
       ],
       theme: {
         extend: {
@@ -43,15 +48,21 @@
           <img src="img/Rapyd-logo.png" alt="Rapyd" class="h-7 w-auto" onerror="this.style.display='none'">
           <span>Monitor Tools</span>
         </a>
-        <button type="button" id="navToggle" class="md:hidden p-2 rounded-lg hover:bg-slate-100" aria-label="Toggle menu">
-          <i class="fas fa-bars text-slate-600"></i>
-        </button>
         <div id="navbarNav" class="hidden md:flex md:items-center md:gap-1">
           <a href="#/home" class="nav-link px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium transition" data-route="home">HOME Page</a>
           <a href="#/nested" class="nav-link px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium transition" data-route="nested">Monitor Query Builder</a>
           <a href="#/email" class="nav-link px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium transition" data-route="email">Email Generator</a>
           <a href="#/tokens" class="nav-link px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium transition" data-route="tokens">Tokens Extractor</a>
           <a href="#/analyze" class="nav-link px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium transition" data-route="analyze">Analyze Logs</a>
+        </div>
+        <div class="flex items-center gap-1">
+          <button type="button" id="feedbackBtn" class="flex flex-col items-center gap-0.5 p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition" title="Feedback & Suggestion" aria-label="Send feedback and suggestion">
+            <i class="fas fa-lightbulb text-sm"></i>
+            <span class="text-[10px] leading-tight">Feedback</span>
+          </button>
+          <button type="button" id="navToggle" class="md:hidden p-2 rounded-lg hover:bg-slate-100" aria-label="Toggle menu">
+            <i class="fas fa-bars text-slate-600"></i>
+          </button>
         </div>
       </div>
       <div id="navbarNavMobile" class="hidden md:hidden pb-4 space-y-1 border-t border-slate-200 pt-2">
@@ -83,6 +94,52 @@
     </div>
   </footer>
 
+  <!-- Feedback Modal -->
+  <div id="feedbackModal" class="fixed inset-0 z-[100] hidden" aria-hidden="true">
+    <div class="fixed inset-0 bg-black/50" id="feedbackModalBackdrop"></div>
+    <div class="fixed inset-0 flex items-center justify-center p-4 pointer-events-none">
+      <div class="bg-white rounded-xl shadow-xl max-w-md w-full max-h-[90vh] overflow-y-auto pointer-events-auto" role="dialog" aria-labelledby="feedbackModalTitle" aria-modal="true">
+        <div class="flex items-center justify-between p-4 border-b border-slate-200">
+          <h2 id="feedbackModalTitle" class="text-lg font-semibold text-slate-800">Feedback & Suggestion</h2>
+          <button type="button" id="feedbackModalClose" class="p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition" aria-label="Close">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+        <form id="feedbackForm" class="p-4 space-y-4">
+          <input type="hidden" name="access_key" value="86a4d637-1ae5-4ae8-9916-91bd4a9dc924">
+          <div>
+            <label for="feedbackName" class="block text-sm font-medium text-slate-700 mb-1">Your name</label>
+            <input type="text" id="feedbackName" name="name" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary" placeholder="Optional">
+          </div>
+          <div>
+            <label for="feedbackEmail" class="block text-sm font-medium text-slate-700 mb-1">Your email</label>
+            <input type="email" id="feedbackEmail" name="email" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary" placeholder="your@email.com" required>
+          </div>
+          <div>
+            <label for="feedbackSubject" class="block text-sm font-medium text-slate-700 mb-1">Subject</label>
+            <input type="text" id="feedbackSubject" name="subject_line" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary" placeholder="Brief summary" required>
+          </div>
+          <div>
+            <label for="feedbackMessage" class="block text-sm font-medium text-slate-700 mb-1">Message</label>
+            <textarea id="feedbackMessage" name="message" rows="4" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary resize-none" placeholder="Your feedback or suggestion..." required></textarea>
+          </div>
+          <div id="feedbackSuccess" class="hidden p-3 rounded-lg bg-emerald-50 text-emerald-700 text-sm">
+            <i class="fas fa-check-circle mr-2"></i> Thank you! Your feedback has been sent.
+          </div>
+          <div id="feedbackError" class="hidden p-3 rounded-lg bg-red-50 text-red-700 text-sm">
+            <i class="fas fa-exclamation-circle mr-2"></i> Something went wrong. Please try again.
+          </div>
+          <div class="flex gap-2 justify-end">
+            <button type="button" id="feedbackCancel" class="px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 transition">Cancel</button>
+            <button type="submit" class="px-4 py-2 rounded-lg bg-primary hover:bg-primary-dark text-white font-medium transition">
+              <i class="fas fa-paper-plane mr-2"></i>Send
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="js/lib/dom.js"></script>
   <script src="js/lib/fieldCatalog.js"></script>
@@ -96,6 +153,69 @@
         var icon = this.querySelector('i');
         if (mobile) mobile.classList.toggle('hidden');
         if (icon) { icon.classList.toggle('fa-bars'); icon.classList.toggle('fa-times'); }
+      });
+    })();
+    (function() {
+      var modal = document.getElementById('feedbackModal');
+      var form = document.getElementById('feedbackForm');
+      var successEl = document.getElementById('feedbackSuccess');
+      var errorEl = document.getElementById('feedbackError');
+      var submitBtn = form?.querySelector('button[type="submit"]');
+      function openModal() {
+        if (modal) {
+          modal.classList.remove('hidden');
+          modal.setAttribute('aria-hidden', 'false');
+          document.body.style.overflow = 'hidden';
+          document.getElementById('feedbackSubject')?.focus();
+        }
+      }
+      function closeModal() {
+        if (modal) {
+          modal.classList.add('hidden');
+          modal.setAttribute('aria-hidden', 'true');
+          document.body.style.overflow = '';
+          successEl?.classList.add('hidden');
+          errorEl?.classList.add('hidden');
+          form?.reset();
+        }
+      }
+      document.getElementById('feedbackBtn')?.addEventListener('click', openModal);
+      document.getElementById('feedbackModalClose')?.addEventListener('click', closeModal);
+      document.getElementById('feedbackCancel')?.addEventListener('click', closeModal);
+      document.getElementById('feedbackModalBackdrop')?.addEventListener('click', closeModal);
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && modal && !modal.classList.contains('hidden')) closeModal();
+      });
+      form?.addEventListener('submit', function(e) {
+        e.preventDefault();
+        successEl?.classList.add('hidden');
+        errorEl?.classList.add('hidden');
+        var fd = new FormData(form);
+        var data = Object.fromEntries(fd.entries());
+        var subj = data.subject_line || 'Feedback';
+        data.subject = 'Monitor Tools – ' + subj;
+        delete data.subject_line;
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Sending...'; }
+        fetch('https://api.web3forms.com/submit', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(data)
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(res) {
+          if (res.success) {
+            successEl?.classList.remove('hidden');
+            setTimeout(closeModal, 2000);
+          } else {
+            errorEl?.classList.remove('hidden');
+          }
+        })
+        .catch(function() {
+          errorEl?.classList.remove('hidden');
+        })
+        .finally(function() {
+          if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = '<i class="fas fa-paper-plane mr-2"></i>Send'; }
+        });
       });
     })();
   </script>
