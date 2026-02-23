@@ -14,14 +14,28 @@ function byId(id, container) {
   return r.getElementById ? r.getElementById(id) : r.querySelector('[id="' + id + '"]');
 }
 
+var EXPLAINED_IMAGE_PATH = 'img/explained-opensearch-inspect.png';
+
 function render() {
   return `
     <h2 class="text-xl font-bold text-slate-800 mb-2">Log Analysis</h2>
-    <p class="text-slate-600 text-sm mb-4">Paste your logs below:</p>
+    <div class="flex flex-wrap items-center gap-2 mb-2">
+      <p class="text-slate-600 text-sm m-0">Paste your logs below:</p>
+      <button type="button" id="logExplainBtn" class="inline-flex items-center justify-center w-7 h-7 rounded-full border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-indigo-600 transition" title="How to get logs from OpenSearch"><i class="fas fa-info-circle text-sm"></i></button>
+      <div id="logExplainThumbnail" class="flex items-center gap-1.5">
+        <img src="${EXPLAINED_IMAGE_PATH}" alt="OpenSearch Inspect guide" class="w-12 h-8 object-cover rounded border border-slate-200 cursor-pointer hover:ring-2 hover:ring-indigo-400 transition" id="logExplainThumbImg" title="Click to view full image">
+      </div>
+    </div>
     <textarea id="logInput" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm resize-none" rows="15" placeholder="OpenSearch -> Get all the hits for the operation ID -> Inspect > Response -> Copy button -> Paste your logs here..."></textarea>
     <div class="mt-4 pt-4 border-t border-slate-200">
       <button class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="analyzeBtn"><i class="fas fa-chart-line"></i> Analyze Logs</button>
       <button class="inline-flex items-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm ml-2" type="button" id="clearBtn"><i class="fas fa-trash-alt"></i> Clear</button>
+    </div>
+    <div id="logExplainModal" class="hidden fixed inset-0 z-[999] flex items-center justify-center p-4" style="background:rgba(0,0,0,0.6)">
+      <div class="relative max-w-4xl max-h-[90vh] w-full">
+        <button type="button" id="logExplainModalClose" class="absolute -top-10 right-0 p-2 rounded-lg text-white hover:bg-white/20 transition" aria-label="Close"><i class="fas fa-times"></i></button>
+        <img src="${EXPLAINED_IMAGE_PATH}" alt="How to get logs from OpenSearch Dashboards" class="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl">
+      </div>
     </div>
     <div id="logOutput" class="mt-6">
       <pre id="analysisResults" class="text-sm text-slate-600">Results will appear here...</pre>
@@ -1081,12 +1095,59 @@ function clearAll(container) {
   if (emailOutputEl) { emailOutputEl.classList.add('hidden'); emailOutputEl.innerHTML = '<h4 class="text-lg font-semibold text-slate-800 mb-2">Generated Email:</h4><pre id="generatedEmail"></pre>'; }
 }
 
+function setupExplainImage(container) {
+  const r = root(container);
+  const modal = byId('logExplainModal', r) || document.getElementById('logExplainModal');
+  const openBtn = byId('logExplainBtn', r) || document.getElementById('logExplainBtn');
+  const thumbImg = byId('logExplainThumbImg', r) || document.getElementById('logExplainThumbImg');
+  const thumbWrap = byId('logExplainThumbnail', r) || document.getElementById('logExplainThumbnail');
+  const closeBtn = byId('logExplainModalClose', r) || document.getElementById('logExplainModalClose');
+
+  var escHandler = null;
+  function openModal() {
+    if (modal) {
+      modal.classList.remove('hidden');
+      modal.style.display = 'flex';
+      escHandler = function (e) {
+        if (e.key === 'Escape') closeModal();
+      };
+      document.addEventListener('keydown', escHandler);
+    }
+  }
+  function closeModal() {
+    if (modal) {
+      modal.classList.add('hidden');
+      modal.style.display = 'none';
+      if (escHandler) {
+        document.removeEventListener('keydown', escHandler);
+        escHandler = null;
+      }
+    }
+  }
+
+  if (openBtn) openBtn.addEventListener('click', openModal);
+  if (thumbImg) thumbImg.addEventListener('click', openModal);
+  if (closeBtn) closeBtn.addEventListener('click', closeModal);
+  if (modal) modal.addEventListener('click', function (e) { if (e.target === modal) closeModal(); });
+}
+
+function hideExplainThumbnail() {
+  const thumbWrap = document.getElementById('logExplainThumbnail');
+  if (thumbWrap) {
+    thumbWrap.style.display = 'none';
+  }
+}
+
 function mount(container) {
   const r = root(container);
   const btn = byId('analyzeBtn', r);
   const clearBtnEl = byId('clearBtn', r);
-  if (btn) btn.addEventListener('click', function () { runAnalysis(container); });
+  if (btn) btn.addEventListener('click', function () {
+    hideExplainThumbnail();
+    runAnalysis(container);
+  });
   if (clearBtnEl) clearBtnEl.addEventListener('click', function () { clearAll(container); });
+  setupExplainImage(container);
 }
 
 function unmount() {

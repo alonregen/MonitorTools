@@ -16,13 +16,23 @@ var dom = (typeof window !== 'undefined' && window.App && window.App.dom) ? wind
 /* ── state ────────────────────────────────────────────────── */
 var DEFAULT_MIN_TOKEN_LENGTH = 20;
 var DEFAULT_MIN_LENGTH_FOR_PREFIX = 24;
-var DEFAULT_EXCLUDE_REGEXES = [
-  /payment_method_type_/,
-  /payment_method_account_name_inquiry/,
-  /payment_method_card_holder_(first|middle|last)_name/,
-  /payment_is_zero_amount_for_tokenization/,
-  /payment_transaction_link_action_indicator/
+/* Regex patterns (strings) for default exclude – compiled at runtime */
+var DEFAULT_EXCLUDE_REGEX_PATTERNS = [
+  'payment_method_type_',
+  'payment_method_account_name_inquiry',
+  'payment_method_card_holder_(first|middle|last)',
+  'payment_is_zero_amount_for_tokenization',
+  'payment_transaction_link_action'
 ];
+
+function _getDefaultExcludeRegexes() {
+  if (!_getDefaultExcludeRegexes._cache) {
+    _getDefaultExcludeRegexes._cache = DEFAULT_EXCLUDE_REGEX_PATTERNS.map(function (p) {
+      try { return new RegExp(p, 'i'); } catch (e) { return null; }
+    }).filter(Boolean);
+  }
+  return _getDefaultExcludeRegexes._cache;
+}
 var lastPaymentTokens = [];
 var lastPayoutTokens = [];
 var lastCustomTokens = [];
@@ -153,7 +163,7 @@ function render() {
     '        <div>',
     '          <label for="tokenOptExclude" class="block text-sm font-semibold text-slate-700 mb-1">Exclude tokens containing</label>',
     '          <textarea id="tokenOptExclude" rows="2" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" placeholder="e.g. payment_id, payment_amount, test_"></textarea>',
-    '          <p class="mt-1 text-xs text-slate-500">Comma or newline separated. Tokens containing any of these substrings will be removed.</p>',
+    '          <p class="mt-1 text-xs text-slate-500">Comma or newline separated. Each entry is a regex pattern (e.g. <code>payment_.*_amount</code>, <code>payment_method_card_holder_(first|middle|last)</code>). Invalid regex falls back to substring match.</p>',
     '        </div>',
 
     '      </div>',
@@ -291,14 +301,21 @@ function getAdvancedOptions() {
 
 function defaultExcludeToken(token) {
   if (!token || String(token).trim() === '') return true;
-  var s = String(token).toLowerCase();
-  return DEFAULT_EXCLUDE_REGEXES.some(function (re) { return re.test(s); });
+  var s = String(token);
+  return _getDefaultExcludeRegexes().some(function (re) { return re.test(s); });
 }
 
 function shouldExcludeToken(token, excludeList) {
   if (!token || !excludeList.length) return false;
-  var lower = String(token).toLowerCase();
-  return excludeList.some(function (part) { return lower.indexOf(part) !== -1; });
+  var s = String(token);
+  return excludeList.some(function (part) {
+    try {
+      var re = new RegExp(part, 'i');
+      return re.test(s);
+    } catch (e) {
+      return s.toLowerCase().indexOf(part.toLowerCase()) !== -1;
+    }
+  });
 }
 
 /* character class for token matching based on setting */
