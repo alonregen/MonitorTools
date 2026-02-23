@@ -1542,7 +1542,7 @@
     // OpenSearch top-level text fields (from prd-logs-* mappings)
     var topLevelFields = ['message', 'label', 'level', 'tags', 'source', 'moduleName', 'filename', 'function', 'instance_id'];
     // Keys that appear inside params JSON (not top-level) – search params field
-    var paramsSemanticFields = ['status', 'error', 'type', 'payment_token', 'payout_token', 'refund_token', 'gateway', 'reference_id', 'payment_failure_code', 'payout_failure_code', 'quarantined_item_id'];
+    var paramsSemanticFields = ['status', 'error', 'type', 'payment_token', 'payment_status', 'payout_token', 'payout_status', 'refund_token', 'gateway', 'reference_id', 'payment_failure_code', 'payout_failure_code', 'quarantined_item_id'];
 
     var parsed = null;
     try {

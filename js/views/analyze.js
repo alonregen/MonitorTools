@@ -113,6 +113,7 @@ function fullLogHtml(hit) {
 
 const fieldIcons = {
   payment_token: 'fas fa-credit-card',
+  payment_status: 'fas fa-info-circle',
   payment_original_amount: 'fas fa-dollar-sign',
   payment_currency_code: 'fas fa-money-bill',
   payment_failure_code: 'fas fa-exclamation-triangle',
@@ -121,6 +122,7 @@ const fieldIcons = {
   reference_id: 'fas fa-id-badge',
   gateway: 'fas fa-network-wired',
   payout_token: 'fas fa-credit-card',
+  payout_status: 'fas fa-info-circle',
   payout_original_amount: 'fas fa-dollar-sign',
   payout_currency_code: 'fas fa-money-bill',
   payout_failure_code: 'fas fa-exclamation-triangle',
@@ -131,11 +133,11 @@ const fieldIcons = {
 };
 
 var paymentFields = [
-  'payment_token', 'payment_original_amount', 'payment_currency_code',
+  'payment_token', 'payment_status', 'payment_original_amount', 'payment_currency_code',
   'payment_failure_code', 'payment_failure_message', 'payment_method_type_type'
 ];
 var payoutFields = [
-  'payout_token', 'payout_original_amount', 'payout_currency_code',
+  'payout_token', 'payout_status', 'payout_original_amount', 'payout_currency_code',
   'payout_failure_code', 'payout_failure_message', 'payout_method_type_type'
 ];
 var refundFields = ['refund_token'];
@@ -161,11 +163,12 @@ function buildFieldRegexes(fieldName) {
     keys.push('gc_type', 'gateway_name');
   } else {
     keys.push(fieldName);
-    if (fieldName.startsWith('payment_') && fieldName !== 'payment_token') {
-      keys.push(fieldName.replace('payment_', ''));
+    var stripped = fieldName.replace(/^(payment_|payout_)/, '');
+    if (fieldName.startsWith('payment_') && fieldName !== 'payment_token' && stripped !== 'status') {
+      keys.push(stripped);
     }
-    if (fieldName.startsWith('payout_') && fieldName !== 'payout_token') {
-      keys.push(fieldName.replace('payout_', ''));
+    if (fieldName.startsWith('payout_') && fieldName !== 'payout_token' && stripped !== 'status') {
+      keys.push(stripped);
     }
     if (fieldName.startsWith('refund_') && fieldName !== 'refund_token') {
       keys.push(fieldName.replace('refund_', ''));
