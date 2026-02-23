@@ -8,7 +8,7 @@
     { path: 'home', view: views.homeView, title: 'HOME Page' },
     { path: 'nested', view: views.nestedView, title: 'Monitor Query Builder' },
     { path: 'email', view: views.emailView, title: 'Email Generator' },
-    { path: 'tokens', view: views.tokensView, title: 'Tokens Generator' },
+    { path: 'tokens', view: views.tokensView, title: 'Tokens Extractor' },
     { path: 'analyze', view: views.analyzeView, title: 'Analyze Logs' }
   ];
 

@@ -1,5 +1,5 @@
 /**
- * Tokens Generator – Extract payment_token / payout_token (label-pair),
+ * Tokens Extractor – Extract payment_token / payout_token (label-pair),
  * payment_xxx / payout_xxx (prefix-match), and custom-prefix tokens.
  * Advanced settings popup controls extraction behavior.
  * Works from file:// and GitHub Pages (no server). Registers on window.MonitorToolsViews.tokensView.
@@ -931,7 +931,7 @@ function mount(c) {
 /* ── register ─────────────────────────────────────────────── */
 var tokensView = {
   route: 'tokens',
-  navLabel: 'Tokens Generator',
+  navLabel: 'Tokens Extractor',
   render: render,
   mount: mount
 };

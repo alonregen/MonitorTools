@@ -18,7 +18,7 @@ var homeView = {
             <i class="fas fa-envelope"></i> Email Generator
           </a>
           <a href="#/tokens" class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-primary-dark text-white font-medium py-3 px-6 shadow-sm transition">
-            <i class="fas fa-key"></i> Tokens Generator
+            <i class="fas fa-key"></i> Tokens Extractor
           </a>
           <a href="#/analyze" class="inline-flex items-center justify-center gap-2 rounded-xl bg-primary hover:bg-primary-dark text-white font-medium py-3 px-6 shadow-sm transition">
             <i class="fas fa-chart-line"></i> Analyze Logs
