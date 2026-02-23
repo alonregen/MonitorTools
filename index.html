@@ -22,7 +22,7 @@
         'pointer-events-none', 'pointer-events-auto', 'rounded-xl', 'shadow-xl', 'max-w-md', 'w-full', 'max-h-\[90vh\]',
         'overflow-y-auto', 'border-b', 'border-slate-200', 'text-lg', 'font-semibold', 'text-slate-800',
         'focus:ring-2', 'focus:ring-primary', 'focus:border-primary', 'bg-emerald-50', 'text-emerald-700',
-        'bg-red-50', 'text-red-700'
+        'bg-red-50', 'text-red-700', 'bg-amber-50', 'text-amber-800'
       ],
       theme: {
         extend: {
@@ -107,6 +107,7 @@
         </div>
         <form id="feedbackForm" class="p-4 space-y-4">
           <input type="hidden" name="access_key" value="86a4d637-1ae5-4ae8-9916-91bd4a9dc924">
+          <input type="checkbox" name="botcheck" class="hidden" style="display: none;">
           <div>
             <label for="feedbackName" class="block text-sm font-medium text-slate-700 mb-1">Your name</label>
             <input type="text" id="feedbackName" name="name" class="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-primary" placeholder="Optional">
@@ -125,6 +126,9 @@
           </div>
           <div id="feedbackSuccess" class="hidden p-3 rounded-lg bg-emerald-50 text-emerald-700 text-sm">
             <i class="fas fa-check-circle mr-2"></i> Thank you! Your feedback has been sent.
+          </div>
+          <div id="feedbackCooldown" class="hidden p-3 rounded-lg bg-amber-50 text-amber-800 text-sm">
+            <i class="fas fa-clock mr-2"></i><span></span>
           </div>
           <div id="feedbackError" class="hidden p-3 rounded-lg bg-red-50 text-red-700 text-sm">
             <i class="fas fa-exclamation-circle mr-2"></i> Something went wrong. Please try again.
@@ -156,17 +160,49 @@
       });
     })();
     (function() {
+      var COOLDOWN_MINUTES = 10;
+      var STORAGE_KEY = 'feedback_cooldown_until';
       var modal = document.getElementById('feedbackModal');
       var form = document.getElementById('feedbackForm');
       var successEl = document.getElementById('feedbackSuccess');
       var errorEl = document.getElementById('feedbackError');
+      var cooldownEl = document.getElementById('feedbackCooldown');
       var submitBtn = form?.querySelector('button[type="submit"]');
+      function getCooldownRemaining() {
+        try {
+          var until = parseInt(localStorage.getItem(STORAGE_KEY) || '0', 10);
+          return Math.max(0, until - Date.now());
+        } catch (e) { return 0; }
+      }
+      function setCooldown() {
+        try {
+          localStorage.setItem(STORAGE_KEY, String(Date.now() + COOLDOWN_MINUTES * 60 * 1000));
+        } catch (e) {}
+      }
+      function updateCooldownUI() {
+        var ms = getCooldownRemaining();
+        var inCooldown = ms > 0;
+        if (cooldownEl) {
+          cooldownEl.classList.toggle('hidden', !inCooldown);
+          var span = cooldownEl.querySelector('span');
+          if (inCooldown && span) {
+            var mins = Math.ceil(ms / 60000);
+            span.textContent = 'You can send feedback again in ' + mins + ' minute' + (mins !== 1 ? 's' : '') + '.';
+          }
+        }
+        if (form) {
+          var fields = form.querySelectorAll('#feedbackName, #feedbackEmail, #feedbackSubject, #feedbackMessage, button[type="submit"]');
+          fields.forEach(function(el) { if (el) el.disabled = inCooldown; });
+          if (submitBtn && !inCooldown) submitBtn.disabled = false;
+        }
+      }
       function openModal() {
         if (modal) {
           modal.classList.remove('hidden');
           modal.setAttribute('aria-hidden', 'false');
           document.body.style.overflow = 'hidden';
-          document.getElementById('feedbackSubject')?.focus();
+          updateCooldownUI();
+          if (getCooldownRemaining() === 0) document.getElementById('feedbackSubject')?.focus();
         }
       }
       function closeModal() {
@@ -179,6 +215,8 @@
           form?.reset();
         }
       }
+      setInterval(updateCooldownUI, 60000);
+      updateCooldownUI();
       document.getElementById('feedbackBtn')?.addEventListener('click', openModal);
       document.getElementById('feedbackModalClose')?.addEventListener('click', closeModal);
       document.getElementById('feedbackCancel')?.addEventListener('click', closeModal);
@@ -204,6 +242,8 @@
         .then(function(r) { return r.json(); })
         .then(function(res) {
           if (res.success) {
+            setCooldown();
+            updateCooldownUI();
             successEl?.classList.remove('hidden');
             setTimeout(closeModal, 2000);
           } else {
