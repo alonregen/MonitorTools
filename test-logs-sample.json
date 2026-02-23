@@ -1,0 +1,27 @@
+{
+  "hits": {
+    "total": 2,
+    "hits": [
+      {
+        "_source": {
+          "time": "2026-02-23T06:04:37.976Z",
+          "timestamp": 1748155477976,
+          "label": "valitor_acquiring_connectors_service",
+          "level": "verbose",
+          "message": "RapydGatewayUtilitiesVault/makeRawRequest - options_data:",
+          "params": { "method": "POST", "url": "https://valitorpay.com/Payment/CardPayment", "json": true }
+        }
+      },
+      {
+        "_source": {
+          "time": "2026-02-23T06:04:38.100Z",
+          "timestamp": 1748155478100,
+          "label": "valitor_acquiring_connectors_service",
+          "level": "verbose",
+          "message": "RapydGatewayUtilitiesVault/makeRawRequest - response=",
+          "params": { "statusCode": 200, "body": { "success": true } }
+        }
+      }
+    ]
+  }
+}

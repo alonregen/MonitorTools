@@ -403,11 +403,50 @@ function escapeAttr(str) {
     .replace(/>/g, '&gt;');
 }
 
+/** Extract log prefix from message (e.g. "RapydGatewayUtilitiesVault/makeRawRequest" from "RapydGatewayUtilitiesVault/makeRawRequest - options_data:") */
+function extractLogPrefix(message) {
+  if (!message || typeof message !== 'string') return null;
+  var m = message.match(/^(.+?)\s+-\s+/);
+  return m ? m[1].trim() : null;
+}
+
+/** Check if message is a response-type log */
+function isResponseLog(message) {
+  return message && / - response\b/.test(message);
+}
+
+/** Build map: logIndex -> responseIndex for each log that has a matching response (same prefix). */
+function buildLogToResponseMap(events) {
+  var map = {};
+  var responses = [];
+  var allWithPrefix = [];
+  events.forEach(function (ev, i) {
+    var msg = (ev.hit._source && ev.hit._source.message) || '';
+    var prefix = extractLogPrefix(msg);
+    var ts = ev.hit._source.timestamp || 0;
+    if (prefix) {
+      allWithPrefix.push({ index: i, prefix: prefix, timestamp: ts, isResponse: isResponseLog(msg) });
+      if (isResponseLog(msg)) responses.push({ index: i, prefix: prefix, timestamp: ts });
+    }
+  });
+  allWithPrefix.forEach(function (entry) {
+    if (entry.isResponse) return;
+    var candidates = responses.filter(function (r) { return r.prefix === entry.prefix; });
+    var after = candidates.filter(function (r) { return r.timestamp >= entry.timestamp; });
+    var chosen = after.length > 0
+      ? after.reduce(function (a, b) { return a.timestamp <= b.timestamp ? a : b; })
+      : (candidates.length > 0 ? candidates.reduce(function (a, b) { return Math.abs(a.timestamp - entry.timestamp) <= Math.abs(b.timestamp - entry.timestamp) ? a : b; }) : null);
+    if (chosen) map[entry.index] = chosen.index;
+  });
+  return map;
+}
+
 function generateTimelineHtml(hits) {
   const events = buildTimelineEvents(hits);
   if (events.length === 0) return '<p class="text-slate-600 text-sm">No timeline events.</p>';
+  const logToResponse = buildLogToResponseMap(events);
   let html = '<div class="log-timeline relative pl-6 border-l-2 border-slate-200 border-solid">';
-  events.forEach((ev) => {
+  events.forEach((ev, idx) => {
     const s = ev.hit._source;
     const searchable = escapeAttr(buildSearchableText(s));
     const time = s.time || 'N/A';
@@ -419,7 +458,8 @@ function generateTimelineHtml(hits) {
     const dotClass = isError ? 'bg-red-500 ring-red-200' : isWarn ? 'bg-amber-500 ring-amber-200' : isContext ? 'bg-sky-400 ring-sky-200' : 'bg-slate-400 ring-slate-200';
     const cardClass = isError ? 'border-red-200 bg-red-50' : isWarn ? 'border-amber-200 bg-amber-50' : isContext ? 'border-sky-200 bg-sky-50' : 'border-slate-200 bg-white';
     var labelVal = (s.label || 'N/A');
-    html += '<div class="log-timeline-item relative mb-2" data-searchable="' + searchable + '" data-label="' + escapeAttr(labelVal) + '">';
+    var responseIndex = logToResponse[idx];
+    html += '<div class="log-timeline-item relative mb-2" data-searchable="' + searchable + '" data-label="' + escapeAttr(labelVal) + '" data-log-index="' + idx + '">';
     html += '<span class="absolute -left-6 top-1.5 w-2.5 h-2.5 rounded-full ring-2 ' + dotClass + '" title="' + ev.type + '"></span>';
     html += '<details class="log-timeline-details rounded border shadow-sm ' + cardClass + '">';
     html += '<summary class="log-timeline-summary cursor-pointer p-2 list-none [&::-webkit-details-marker]:hidden">';
@@ -433,7 +473,13 @@ function generateTimelineHtml(hits) {
     html += '<span class="log-timeline-msg text-sm text-slate-700 min-w-0" title="' + escapeAttr((s.message || '').slice(0, 200)) + '">' + msg + '</span>';
     html += '<span class="text-slate-400 text-xs whitespace-nowrap shrink-0">Click to expand</span>';
     html += '</summary>';
-    html += '<div class="px-2 pb-2">' + fullLogHtml(ev.hit) + '</div>';
+    html += '<div class="px-2 pb-2">' + fullLogHtml(ev.hit);
+    if (responseIndex != null) {
+      html += '<div class="mt-2 pt-2 border-t border-slate-200">';
+      html += '<button type="button" class="go-to-response-btn inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-1.5 text-xs font-medium transition shadow-sm" data-response-index="' + responseIndex + '" title="Scroll to related response log"><i class="fas fa-arrow-right"></i> Go to response</button>';
+      html += '</div>';
+    }
+    html += '</div>';
     html += '</details></div>';
   });
   html += '</div>';
@@ -521,6 +567,24 @@ function setupErrorsSectionCopyButtons() {
     if (!btn) return;
     var text = btn.getAttribute('data-copy-text');
     if (text) handleCopy(btn, text);
+  });
+}
+
+/** Setup "Go to response" button clicks – scroll to response log and expand it */
+function setupGoToResponseButtons() {
+  var wrapper = document.getElementById('logTimelineWrapper');
+  if (!wrapper) return;
+  wrapper.addEventListener('click', function (e) {
+    var btn = e.target.closest('.go-to-response-btn');
+    if (!btn) return;
+    var responseIndex = btn.getAttribute('data-response-index');
+    if (responseIndex == null) return;
+    var target = wrapper.querySelector('.log-timeline-item[data-log-index="' + responseIndex + '"]');
+    if (!target) return;
+    target.classList.remove('timeline-search-hidden');
+    var details = target.querySelector('.log-timeline-details');
+    if (details) details.setAttribute('open', '');
+    target.scrollIntoView({ behavior: 'smooth', block: 'center' });
   });
 }
 
@@ -1037,6 +1101,7 @@ function runAnalysis(container) {
   resultsEl.innerHTML = results;
 
   setupErrorsSectionCopyButtons();
+  setupGoToResponseButtons();
   setupTimelineSearch();
   setupLabelFilters();
   setupTimelineFullscreen();
