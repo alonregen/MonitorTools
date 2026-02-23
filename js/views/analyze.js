@@ -518,6 +518,24 @@ function buildLogContextForQA(hits, uniqueDetails, occurrences, sortedLabels, to
   return ctx.length > 6000 ? ctx.slice(0, 6000) + '\n...[truncated]' : ctx;
 }
 
+var FAVORITE_SEARCH_STORAGE_KEY = 'monitor_tools_favorite_searches';
+var DEFAULT_FAVORITE_SEARCHES = ['makerawrequest', 'options_data', 'response', 'error'];
+
+function getFavoriteSearches() {
+  try {
+    var raw = localStorage.getItem(FAVORITE_SEARCH_STORAGE_KEY);
+    if (!raw) return [];
+    var arr = JSON.parse(raw);
+    return Array.isArray(arr) ? arr.filter(function (s) { return typeof s === 'string' && s.trim(); }) : [];
+  } catch (e) { return []; }
+}
+
+function saveFavoriteSearches(arr) {
+  try {
+    localStorage.setItem(FAVORITE_SEARCH_STORAGE_KEY, JSON.stringify(arr));
+  } catch (e) {}
+}
+
 /** Debounce helper for efficient real-time search */
 function debounce(fn, ms) {
   var t;
@@ -645,6 +663,58 @@ function setupTimelineSearch() {
       input.blur();
     }
   });
+
+  var favContainer = document.getElementById('timelineFavorites');
+  if (favContainer) {
+    favContainer.addEventListener('click', function (e) {
+      var chip = e.target.closest('.timeline-favorite-chip');
+      var removeBtn = e.target.closest('.timeline-favorite-remove');
+      if (removeBtn) {
+        var term = removeBtn.getAttribute('data-remove-term');
+        if (term) {
+          var user = getFavoriteSearches().filter(function (t) { return t !== term; });
+          saveFavoriteSearches(user);
+          var wrap = removeBtn.closest('.timeline-favorite-chip-wrap');
+          if (wrap) wrap.remove();
+        }
+        return;
+      }
+      if (chip) {
+        var term = chip.getAttribute('data-search-term');
+        if (term) {
+          input.value = term;
+          input.focus();
+          if (window._timelineFilterFn) window._timelineFilterFn();
+        }
+      }
+    });
+  }
+
+  var addBtn = document.getElementById('timelineFavoriteAddBtn');
+  var addInput = document.getElementById('timelineFavoriteInput');
+  if (addBtn && addInput && favContainer) {
+    function doAdd() {
+      var term = (addInput.value || '').trim().toLowerCase();
+      if (!term) return;
+      var defaults = DEFAULT_FAVORITE_SEARCHES;
+      var user = getFavoriteSearches();
+      if (defaults.indexOf(term) !== -1 || user.indexOf(term) !== -1) {
+        addInput.value = '';
+        return;
+      }
+      user.push(term);
+      saveFavoriteSearches(user);
+      var wrap = document.createElement('span');
+      wrap.className = 'timeline-favorite-chip-wrap inline-flex items-center rounded-lg bg-indigo-50 border border-indigo-200';
+      wrap.innerHTML = '<button type="button" class="timeline-favorite-chip inline-flex items-center px-2.5 py-1 text-xs font-medium text-indigo-800 hover:bg-indigo-100 transition cursor-pointer" data-search-term="' + escapeAttr(term) + '" data-user-favorite="1">' + dom.escapeHtml(term) + '</button><button type="button" class="timeline-favorite-remove px-1.5 py-1 text-indigo-600 hover:text-red-600 hover:bg-red-50 rounded-r transition cursor-pointer" data-remove-term="' + escapeAttr(term) + '" title="Remove favorite"><i class="fas fa-times text-xs"></i></button>';
+      favContainer.insertBefore(wrap, addInput.parentElement);
+      addInput.value = '';
+    }
+    addBtn.addEventListener('click', doAdd);
+    addInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); doAdd(); }
+    });
+  }
 }
 
 /** Setup label filter chips – click cycles: neutral → in (filter in) → out (filter out) → neutral */
@@ -1061,11 +1131,26 @@ function runAnalysis(container) {
   results += '<div id="timelineSectionContent" class="p-2 border-t border-slate-200 bg-slate-50/50">';
   results += '<div class="timeline-header flex flex-wrap items-center gap-x-3 gap-y-1 mb-2">';
   results += '<span class="rounded bg-indigo-100 border border-indigo-200 px-2 py-1 text-slate-800 text-sm font-medium"><i class="fas fa-tachometer-alt mr-1"></i>Total Hits: ' + totalHits + '</span>';
-  results += '<span class="text-xs text-slate-500">All logs in chronological order. <span class="text-red-500 font-medium">Red</span> = error, <span class="text-amber-500 font-medium">Amber</span> = warning, <span class="text-sky-500 font-medium">Blue</span> = adjacent to error/warning. Click any entry for full log.</span>';
   results += '</div>';
   results += '<div class="timeline-search-bar mb-2">';
   results += '<input type="text" id="timelineSearchInput" placeholder="Search all logs (time, label, message, level, params)…" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" autocomplete="off" />';
   results += '<span id="timelineSearchCount" class="hidden text-xs text-slate-500 mt-1"></span>';
+  results += '</div>';
+  results += '<div id="timelineFavorites" class="flex flex-wrap items-center gap-2 mb-2">';
+  results += '<span class="text-xs text-slate-500 font-medium">Favorite:</span>';
+  DEFAULT_FAVORITE_SEARCHES.forEach(function (term) {
+    results += '<button type="button" class="timeline-favorite-chip inline-flex items-center rounded-lg bg-slate-100 border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-700 hover:bg-slate-200 hover:border-slate-400 transition cursor-pointer" data-search-term="' + escapeAttr(term) + '" title="Search for \'' + escapeAttr(term) + '\'">' + dom.escapeHtml(term) + '</button>';
+  });
+  getFavoriteSearches().forEach(function (term) {
+    results += '<span class="timeline-favorite-chip-wrap inline-flex items-center rounded-lg bg-indigo-50 border border-indigo-200">';
+    results += '<button type="button" class="timeline-favorite-chip inline-flex items-center px-2.5 py-1 text-xs font-medium text-indigo-800 hover:bg-indigo-100 transition cursor-pointer" data-search-term="' + escapeAttr(term) + '" data-user-favorite="1">' + dom.escapeHtml(term) + '</button>';
+    results += '<button type="button" class="timeline-favorite-remove px-1.5 py-1 text-indigo-600 hover:text-red-600 hover:bg-red-50 rounded-r transition cursor-pointer" data-remove-term="' + escapeAttr(term) + '" title="Remove favorite"><i class="fas fa-times text-xs"></i></button>';
+    results += '</span>';
+  });
+  results += '<span class="inline-flex items-center gap-1 ml-1">';
+  results += '<input type="text" id="timelineFavoriteInput" placeholder="Add favorite…" class="w-28 rounded border border-slate-300 px-2 py-1 text-xs text-slate-800 placeholder-slate-400 focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500" maxlength="50" autocomplete="off" />';
+  results += '<button type="button" id="timelineFavoriteAddBtn" class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1 text-xs font-medium transition" title="Add to favorites"><i class="fas fa-plus"></i> Add</button>';
+  results += '</span>';
   results += '</div>';
   results += '<div id="timelineLabelFilters" class="flex flex-wrap gap-2 mb-3">';
   sortedLabels.forEach(([label, count]) => {
