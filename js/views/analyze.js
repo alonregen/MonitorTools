@@ -29,6 +29,7 @@ function render() {
     <textarea id="logInput" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm resize-none" rows="15" placeholder="OpenSearch -> Get all the hits for the operation ID -> Inspect > Response -> Copy button -> Paste your logs here..."></textarea>
     <div class="mt-4 pt-4 border-t border-slate-200">
       <button class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="analyzeBtn"><i class="fas fa-chart-line"></i> Analyze Logs</button>
+      <button class="inline-flex items-center gap-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm ml-2" type="button" id="demoBtn" title="Paste sample logs with anonymized data"><i class="fas fa-magic"></i> Demo</button>
       <button class="inline-flex items-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm ml-2" type="button" id="clearBtn"><i class="fas fa-trash-alt"></i> Clear</button>
     </div>
     <div id="logExplainModal" class="hidden fixed inset-0 z-[999] flex items-center justify-center p-4" style="background:rgba(0,0,0,0.6)">
@@ -45,6 +46,149 @@ function render() {
       <pre id="generatedEmail"></pre>
     </div>
   `;
+}
+
+/** Generate random UUID v4 */
+function randomUuid() {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+    var r = Math.random() * 16 | 0;
+    var v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+/** Generate random hex string (e.g. for qm_ IDs) */
+function randomHex(len) {
+  var s = '';
+  for (var i = 0; i < len; i++) s += '0123456789abcdef'[Math.floor(Math.random() * 16)];
+  return s;
+}
+
+/** Pick random from array */
+function pick(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+/** Generate mock logs with anonymized PII for demo */
+function generateDemoLogs() {
+  var opId = randomUuid();
+  var payId = randomUuid();
+  var payToken = 'pay_' + randomHex(24);
+  var orgId = 'org_' + randomHex(16);
+  var pmId = 'pm_' + randomHex(24);
+  var pmToken = 'pmt_' + randomHex(24);
+  var refId = 'ref_' + randomHex(12);
+  var ewalletId = 'ew_' + randomHex(24);
+  var ewalletToken = 'ewt_' + randomHex(24);
+  var custToken = 'cust_' + randomHex(24);
+  var gateway = pick(['stripe_demo', 'braintree_sandbox', 'adyen_test', 'paypal_sandbox', 'checkout_demo']);
+  var ip = '10.' + (Math.floor(Math.random() * 255) + 1) + '.' + (Math.floor(Math.random() * 255) + 1) + '.' + (Math.floor(Math.random() * 254) + 1);
+  var email = 'demo_' + randomHex(8) + '@example.com';
+  var phone = '+1' + (5000000000 + Math.floor(Math.random() * 999999999));
+  var hostedUrl = 'https://demo.example.com/checkout/' + randomHex(16);
+  var accessKey = 'ak_demo_' + randomHex(20);
+  var secretKey = 'sk_demo_' + randomHex(32);
+  var statementDesc = 'DEMO CHARGE ' + randomHex(6).toUpperCase();
+  var pgpPlaceholder = '-----BEGIN PGP MESSAGE-----\nVersion: Demo\n\n' + randomHex(64) + '\n-----END PGP MESSAGE-----';
+
+  var baseTs = Date.now() - 120000;
+  var entries = [
+    {
+      time: new Date(baseTs).toISOString(),
+      timestamp: baseTs,
+      timestamp_ns: baseTs * 1e6,
+      label: 'payment_service',
+      level: 'verbose',
+      message: 'Payment initiated',
+      operation_id: opId,
+      payment_id: payId,
+      payment_token: payToken,
+      payment_organization_id: orgId,
+      payment_payment_method_id: pmId,
+      payment_payment_method_token: pmToken,
+      payment_reference_id: refId,
+      payment_description: 'Demo payment',
+      payment_statement_descriptor: statementDesc,
+      payment_ewallet_id: ewalletId,
+      ewallet_token: ewalletToken,
+      customer_token: custToken,
+      gateway_name: gateway,
+      source_ip_address: ip,
+      params: { payment_token: payToken, gateway_name: gateway, operation_id: opId }
+    },
+    {
+      time: new Date(baseTs + 200).toISOString(),
+      timestamp: baseTs + 200,
+      label: gateway + '_connectors_service',
+      level: 'verbose',
+      message: 'RapydGatewayUtilitiesVault/makeRawRequest - options_data:',
+      operation_id: opId,
+      params: {
+        method: 'POST',
+        url: 'https://api.demo-gateway.com/v1/charge',
+        json: true,
+        body: { amount: 4999, currency: 'USD', payment_token: payToken }
+      }
+    },
+    {
+      time: new Date(baseTs + 450).toISOString(),
+      timestamp: baseTs + 450,
+      label: gateway + '_connectors_service',
+      level: 'error',
+      message: 'RapydGatewayUtilitiesVault/makeRawRequest - response=',
+      operation_id: opId,
+      payment_token: payToken,
+      payment_status: 'failed',
+      payment_failure_code: 'card_declined',
+      payment_failure_message: 'Your card was declined. Please try a different payment method.',
+      gateway_name: gateway,
+      params: {
+        statusCode: 402,
+        body: {
+          success: false,
+          error: { code: 'card_declined', message: 'Card declined' },
+          payment_token: payToken,
+          gateway_name: gateway
+        }
+      }
+    },
+    {
+      time: new Date(baseTs + 500).toISOString(),
+      timestamp: baseTs + 500,
+      label: 'payment_service',
+      level: 'error',
+      message: 'PAYMENT_FAILED',
+      operation_id: opId,
+      payment_token: payToken,
+      payment_status: 'failed',
+      payment_original_amount: 49.99,
+      payment_currency_code: 'USD',
+      payment_failure_code: 'card_declined',
+      payment_failure_message: 'Your card was declined.',
+      gateway_name: gateway,
+      reference_id: refId,
+      source_ip_address: ip,
+      email: email,
+      phone_number: phone,
+      hosted_page_url: hostedUrl,
+      params: {
+        payment_token: payToken,
+        gateway_name: gateway,
+        access_key: accessKey,
+        secret_key: '[REDACTED]',
+        encrypted_data: pgpPlaceholder
+      }
+    }
+  ];
+
+  return JSON.stringify({
+    hits: {
+      total: entries.length,
+      hits: entries.map(function (e) {
+        return { _id: randomUuid(), _source: e };
+      })
+    }
+  }, null, 2);
 }
 
 function collectAggregationBuckets(obj, out) {
@@ -1294,10 +1438,18 @@ function hideExplainThumbnail() {
 function mount(container) {
   const r = root(container);
   const btn = byId('analyzeBtn', r);
+  const demoBtnEl = byId('demoBtn', r);
   const clearBtnEl = byId('clearBtn', r);
   if (btn) btn.addEventListener('click', function () {
     hideExplainThumbnail();
     runAnalysis(container);
+  });
+  if (demoBtnEl) demoBtnEl.addEventListener('click', function () {
+    var logInput = byId('logInput', r);
+    if (logInput) {
+      logInput.value = generateDemoLogs();
+      logInput.focus();
+    }
   });
   if (clearBtnEl) clearBtnEl.addEventListener('click', function () { clearAll(container); });
   setupExplainImage(container);
