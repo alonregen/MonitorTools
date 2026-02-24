@@ -32,7 +32,7 @@ function render() {
     <div class="mt-4 pt-4 border-t border-slate-200">
       <button class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="analyzeBtn"><i class="fas fa-chart-line"></i> Analyze Logs</button>
       <button class="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 px-5 py-2.5 text-sm font-medium transition shadow-sm ml-2" type="button" id="demoBtn" title="Paste sample logs with anonymized data"><i class="fas fa-magic"></i> Demo</button>
-      <button class="inline-flex items-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm ml-2" type="button" id="clearBtn"><i class="fas fa-trash-alt"></i> Clear</button>
+      <button class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 px-5 py-2.5 text-sm font-medium transition shadow-sm ml-2" type="button" id="clearBtn"><i class="fas fa-trash-alt"></i> Clear</button>
     </div>
     <div id="logExplainModal" class="hidden fixed inset-0 z-[999] flex items-center justify-center p-4" style="background:rgba(0,0,0,0.6)">
       <div class="relative max-w-4xl max-h-[90vh] w-full">
@@ -1390,12 +1390,12 @@ function runAnalysis(container) {
   if (!logsEl || !resultsEl) return;
   const logs = logsEl.value;
 
-  logsEl.disabled = true;
-  logsEl.classList.add('opacity-75', 'cursor-not-allowed', 'bg-slate-50');
+  setAnalyzeInputLocked(container, true);
   resultsEl.innerHTML = '<div class="text-center py-8"><p class="text-slate-600"><i class="fas fa-spinner fa-spin mr-2"></i>Analyzing logs, please wait...</p></div>';
 
   const parseResult = parseLogs(logs);
   if (parseResult.error) {
+    setAnalyzeInputLocked(container, false);
     resultsEl.innerHTML = '<div class="rounded-xl border-2 border-red-200 bg-red-50 p-6"><h3 class="text-lg font-semibold text-red-800 mb-2"><i class="fas fa-exclamation-triangle mr-2"></i>Could not parse logs</h3><p class="text-red-700 text-sm mb-3">' + dom.escapeHtml(parseResult.error) + '</p><p class="text-slate-600 text-sm">Ensure the input is valid JSON (OpenSearch response format). Avoid editing the structure—if you need to trim logs, remove entire log entries to keep the JSON valid.</p></div>';
     return;
   }
@@ -1554,17 +1554,44 @@ function runAnalysis(container) {
   }
 }
 
+function setAnalyzeInputLocked(container, locked) {
+  var r = root(container);
+  var logsEl = byId('logInput', r);
+  var demoBtn = byId('demoBtn', r);
+  var clearBtn = byId('clearBtn', r);
+  if (logsEl) {
+    logsEl.disabled = locked;
+    logsEl.classList.toggle('opacity-75', locked);
+    logsEl.classList.toggle('cursor-not-allowed', locked);
+    logsEl.classList.toggle('bg-slate-50', locked);
+  }
+  if (demoBtn) {
+    demoBtn.disabled = locked;
+    demoBtn.classList.toggle('opacity-50', locked);
+    demoBtn.classList.toggle('cursor-not-allowed', locked);
+  }
+  if (clearBtn) {
+    clearBtn.disabled = false;
+    clearBtn.classList.toggle('font-bold', locked);
+    clearBtn.classList.toggle('bg-white', !locked);
+    clearBtn.classList.toggle('border-slate-300', !locked);
+    clearBtn.classList.toggle('text-slate-700', !locked);
+    clearBtn.classList.toggle('bg-red-50', locked);
+    clearBtn.classList.toggle('border-red-200', locked);
+    clearBtn.classList.toggle('text-red-700', locked);
+    clearBtn.classList.toggle('hover:bg-red-100', locked);
+    clearBtn.classList.toggle('[&>i]:text-red-600', locked);
+  }
+}
+
 function clearAll(container) {
   var r = root(container);
   var logsEl = byId('logInput', r);
   var resultsEl = byId('analysisResults', r);
   var emailOutputEl = document.getElementById('emailOutput');
   var thumbWrap = document.getElementById('logExplainThumbnail');
-  if (logsEl) {
-    logsEl.disabled = false;
-    logsEl.classList.remove('opacity-75', 'cursor-not-allowed', 'bg-slate-50');
-    logsEl.value = '';
-  }
+  if (logsEl) logsEl.value = '';
+  setAnalyzeInputLocked(container, false);
   if (resultsEl) resultsEl.innerHTML = '<span class="text-sm text-slate-600">Results will appear here...</span>';
   if (emailOutputEl) { emailOutputEl.classList.add('hidden'); emailOutputEl.innerHTML = '<h4 class="text-lg font-semibold text-slate-800 mb-2">Generated Email:</h4><pre id="generatedEmail"></pre>'; }
   if (thumbWrap) thumbWrap.style.display = '';
@@ -1632,6 +1659,7 @@ function mount(container) {
   if (clearBtnEl) clearBtnEl.addEventListener('click', function () { clearAll(container); });
   var refreshBtnEl = byId('analyzeRefreshBtn', r);
   if (refreshBtnEl) refreshBtnEl.addEventListener('click', function () { clearAll(container); });
+  setAnalyzeInputLocked(container, false);
   setupExplainImage(container);
 }
 
