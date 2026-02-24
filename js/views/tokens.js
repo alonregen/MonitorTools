@@ -96,9 +96,10 @@ function render() {
     /* ── error alert ── */
     '<div id="tokensErrorAlert" class="mt-2"></div>',
 
-    /* ── buttons row: Extract + Advanced ── */
+    /* ── buttons row: Extract + Demo + Advanced ── */
     '<div class="mt-4 pt-4 border-t border-slate-200 flex flex-wrap items-center gap-3">',
     '  <button class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="extractTokensBtn"><i class="fas fa-bolt"></i> Extract Tokens</button>',
+    '  <button class="inline-flex items-center gap-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="tokensDemoBtn" title="Paste sample text with mock tokens"><i class="fas fa-magic"></i> Demo</button>',
     '  <button class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="tokenAdvancedBtn"><i class="fas fa-sliders-h"></i> Advanced Settings</button>',
     '  <span id="tokenAdvancedBadge" class="hidden inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700"><i class="fas fa-check-circle text-[10px]"></i> Custom settings active</span>',
     '</div>',
@@ -203,7 +204,7 @@ function render() {
     '      <div class="text-xs font-medium text-slate-600 uppercase tracking-wide mt-0.5">Total</div>',
     '    </div>',
 
-    /* search bar */
+    /* search bar + compare */
     '    <div class="rounded-xl border border-slate-200 bg-slate-50/80 p-3">',
     '      <div class="flex flex-wrap items-center gap-2">',
     '        <div class="relative flex-1 min-w-[200px]">',
@@ -211,6 +212,7 @@ function render() {
     '          <input type="text" id="tokensSearch" placeholder="Search in results..." class="w-full pl-9 pr-9 py-2.5 border border-slate-300 rounded-lg text-slate-800 text-sm placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white">',
     '          <button type="button" id="tokensSearchClear" class="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded text-slate-400 hover:text-slate-600 hover:bg-slate-200 hidden" aria-label="Clear search"><i class="fas fa-times text-sm"></i></button>',
     '        </div>',
+    '        <button type="button" id="tokensCompareBtn" class="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 px-3 py-2.5 text-sm font-medium transition shadow-sm"><i class="fas fa-code-branch"></i> Compare</button>',
     '        <span id="tokensSearchSummary" class="text-xs text-slate-500 whitespace-nowrap">Type to filter results</span>',
     '      </div>',
     '    </div>',
@@ -240,6 +242,22 @@ function render() {
     '      <ol id="customTokensList" class="list-decimal list-inside text-sm text-slate-700 space-y-1"></ol>',
     '    </div>',
     '  </div>',
+    '</div>',
+
+    /* ══════ Compare Tokens Modal ══════ */
+    '<div id="tokensCompareModal" class="hidden fixed inset-0 z-[999] flex items-center justify-center p-4" style="background:rgba(0,0,0,0.4)">',
+    '  <div class="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col" id="tokensCompareModalContent">',
+    '    <div class="flex items-center justify-between p-5 border-b border-slate-200 shrink-0">',
+    '      <h3 class="text-lg font-semibold text-slate-800"><i class="fas fa-code-branch mr-2 text-indigo-500"></i>Compare Tokens</h3>',
+    '      <button type="button" id="tokensCompareClose" class="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition" aria-label="Close"><i class="fas fa-times"></i></button>',
+    '    </div>',
+    '    <div class="p-5 overflow-y-auto flex-1">',
+    '      <p class="text-sm text-slate-600 mb-3">Paste tokens to compare (one per line). Result shows diff between extracted tokens and your pasted list.</p>',
+    '      <textarea id="tokensCompareInput" rows="6" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800 font-mono text-sm placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 resize-none" placeholder="Paste tokens here, one per line..."></textarea>',
+    '      <button type="button" id="tokensCompareRunBtn" class="mt-3 inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2.5 text-sm font-medium transition shadow-sm"><i class="fas fa-sync-alt"></i> Compare</button>',
+    '      <div id="tokensCompareResult" class="mt-6 hidden space-y-4"></div>',
+    '    </div>',
+    '  </div>',
     '</div>'
   ].join('\n');
 }
@@ -254,6 +272,28 @@ function showError(c, message) {
 function clearError(c) {
   var box = _byId('tokensErrorAlert', c);
   if (box) box.innerHTML = '';
+}
+
+function randomHex(len) {
+  var s = '';
+  for (var i = 0; i < len; i++) s += '0123456789abcdef'[Math.floor(Math.random() * 16)];
+  return s;
+}
+
+function generateDemoTokens() {
+  var pay1 = 'pay_' + randomHex(24);
+  var pay2 = 'pay_' + randomHex(24);
+  var out1 = 'payout_' + randomHex(24);
+  var out2 = 'payout_' + randomHex(24);
+  var ref = 'ref_' + randomHex(12);
+  return [
+    'Log entry: payment_token: ' + pay1 + ' status=failed',
+    '{"payment_token":"' + pay2 + '","gateway":"stripe","amount":49.99}',
+    'payout_token: ' + out1 + ' | reference_id: ' + ref,
+    '"payout_token":"' + out2 + '"',
+    'payment_token=' + pay1 + ' failure_code=card_declined',
+    'PAYMENT_FAILED payment_token: ' + pay2 + ' gateway_name: stripe_demo'
+  ].join('\n');
 }
 
 function readFileAsText(file) {
@@ -762,6 +802,89 @@ function saveModalSettings(c) {
   resetResults(c);
 }
 
+/* ── compare tokens ───────────────────────────────────────── */
+function parseTokensFromText(text) {
+  if (!text || typeof text !== 'string') return [];
+  return text.split(/[\r\n]+/).map(function (s) { return s.trim(); }).filter(function (s) { return s && isValidToken(s); });
+}
+
+function openCompareModal(c) {
+  var modal = _byId('tokensCompareModal', c);
+  if (!modal) return;
+  var input = _byId('tokensCompareInput', c);
+  var result = _byId('tokensCompareResult', c);
+  if (input) input.value = '';
+  if (result) { result.innerHTML = ''; result.classList.add('hidden'); }
+  modal.classList.remove('hidden');
+  if (input) input.focus();
+}
+
+function closeCompareModal(c) {
+  var modal = _byId('tokensCompareModal', c);
+  if (modal) modal.classList.add('hidden');
+}
+
+function runCompare(c) {
+  var input = _byId('tokensCompareInput', c);
+  var resultEl = _byId('tokensCompareResult', c);
+  if (!input || !resultEl) return;
+
+  var extracted = [].concat(
+    (lastPaymentTokens || []).filter(isValidToken),
+    (lastPayoutTokens || []).filter(isValidToken),
+    (lastCustomTokens || []).filter(isValidToken)
+  );
+  extracted = Array.from(new Set(extracted));
+
+  var pasted = parseTokensFromText(input.value);
+
+  if (extracted.length === 0 && pasted.length === 0) {
+    resultEl.innerHTML = '<p class="text-slate-500 text-sm">No tokens to compare. Extract tokens first, then paste tokens to compare.</p>';
+    resultEl.classList.remove('hidden');
+    return;
+  }
+
+  var extractedSet = new Set(extracted.map(function (t) { return String(t).toLowerCase(); }));
+  var pastedSet = new Set(pasted.map(function (t) { return String(t).toLowerCase(); }));
+
+  var inBoth = [];
+  var onlyExtracted = [];
+  var onlyPasted = [];
+
+  extracted.forEach(function (t) {
+    var key = String(t).toLowerCase();
+    if (pastedSet.has(key)) inBoth.push(t);
+    else onlyExtracted.push(t);
+  });
+  pasted.forEach(function (t) {
+    var key = String(t).toLowerCase();
+    if (!extractedSet.has(key)) onlyPasted.push(t);
+  });
+
+  function renderSection(title, tokens, icon, bgCls, borderCls) {
+    if (tokens.length === 0) return '';
+    var list = tokens.map(function (t) { return '<li class="py-1 px-2 rounded font-mono text-sm">' + dom.escapeHtml(String(t)) + '</li>'; }).join('');
+    var copyText = tokens.join('\n');
+    var copyBtn = '<button type="button" class="compare-copy-btn inline-flex items-center gap-1 rounded-lg bg-slate-600 hover:bg-slate-700 text-white px-2 py-1 text-xs font-medium transition" data-copy-text="' + dom.escapeHtml(JSON.stringify(copyText)) + '" title="Copy"><i class="fas fa-copy"></i></button>';
+    return '<div class="rounded-xl border-2 ' + borderCls + ' ' + bgCls + ' p-4">' +
+      '<div class="flex items-center justify-between mb-2">' +
+      '<h4 class="text-sm font-semibold text-slate-800"><i class="fas ' + icon + ' mr-1.5"></i>' + dom.escapeHtml(title) + ' <span class="font-normal text-slate-500">(' + tokens.length + ')</span></h4>' +
+      copyBtn +
+      '</div>' +
+      '<ul class="space-y-0.5 max-h-48 overflow-y-auto">' + list + '</ul>' +
+      '</div>';
+  }
+
+  var html = '<div class="grid grid-cols-1 md:grid-cols-3 gap-4">' +
+    renderSection('In both', inBoth, 'fa-check-circle', 'bg-emerald-50', 'border-emerald-200') +
+    renderSection('Only in extracted', onlyExtracted, 'fa-minus-circle', 'bg-amber-50', 'border-amber-200') +
+    renderSection('Only in pasted', onlyPasted, 'fa-plus-circle', 'bg-blue-50', 'border-blue-200') +
+    '</div>';
+
+  resultEl.innerHTML = html;
+  resultEl.classList.remove('hidden');
+}
+
 function resetToDefaults(c) {
   advancedSettings.enabled = false;
   advancedSettings.minLength = DEFAULT_MIN_TOKEN_LENGTH;
@@ -798,6 +921,15 @@ function mount(c) {
   var btn = _byId('extractTokensBtn', c);
   if (btn) btn.addEventListener('click', function () { extractPaymentAndPayoutTokens(c); });
 
+  var demoBtn = _byId('tokensDemoBtn', c);
+  if (demoBtn) demoBtn.addEventListener('click', function () {
+    var input = _byId('inputData', c);
+    if (input) {
+      input.value = generateDemoTokens();
+      input.focus();
+    }
+  });
+
   /* File input + clear all */
   var fileInput = _byId('tokenFiles', c);
   if (fileInput) fileInput.addEventListener('change', function () { handleFilesSelected(c); });
@@ -819,6 +951,35 @@ function mount(c) {
     var input = _byId('tokensSearch', c);
     if (input) { input.value = ''; applyTokenListFilter(c, ''); input.focus(); }
   });
+
+  /* Compare modal */
+  var compareBtn = _byId('tokensCompareBtn', c);
+  if (compareBtn) compareBtn.addEventListener('click', function () { openCompareModal(c); });
+  var compareClose = _byId('tokensCompareClose', c);
+  if (compareClose) compareClose.addEventListener('click', function () { closeCompareModal(c); });
+  var compareRun = _byId('tokensCompareRunBtn', c);
+  if (compareRun) compareRun.addEventListener('click', function () { runCompare(c); });
+  var compareModal = _byId('tokensCompareModal', c);
+  if (compareModal) {
+    compareModal.addEventListener('click', function (e) {
+      if (e.target === compareModal) closeCompareModal(c);
+      var btn = e.target && e.target.closest ? e.target.closest('.compare-copy-btn') : null;
+      if (btn) {
+        var raw = btn.getAttribute('data-copy-text');
+        var text = raw;
+        try { text = raw ? JSON.parse(raw) : ''; } catch (_) {}
+        if (text && dom.copyToClipboard) {
+          dom.copyToClipboard(text).then(function (ok) {
+            if (ok) {
+              var orig = btn.innerHTML;
+              btn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+              setTimeout(function () { btn.innerHTML = orig; }, 1500);
+            }
+          });
+        }
+      }
+    });
+  }
 
   /* Reset when custom pattern changes (not on textarea – user may edit and re-extract) */
   var customPatternEl = _byId('tokenCustomPattern', c);
@@ -852,7 +1013,13 @@ function mount(c) {
 
   /* close modal on Escape */
   document.addEventListener('keydown', function (e) {
-    if (e.key === 'Escape' && modal && !modal.classList.contains('hidden')) {
+    if (e.key !== 'Escape') return;
+    var compareModalEl = _byId('tokensCompareModal', c);
+    if (compareModalEl && !compareModalEl.classList.contains('hidden')) {
+      closeCompareModal(c);
+      return;
+    }
+    if (modal && !modal.classList.contains('hidden')) {
       closeModal(c);
     }
   });
