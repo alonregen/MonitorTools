@@ -867,6 +867,29 @@ function escapeRegex(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
+/** Parse search query: "quoted" = exact word/phrase, unquoted = substring match */
+function parseSearchQuery(q) {
+  var terms = [];
+  var exactPhrases = [];
+  var regex = /"([^"]*)"|(\S+)/g;
+  var m;
+  while ((m = regex.exec(q)) !== null) {
+    if (m[1] !== undefined) {
+      var p = m[1].trim().toLowerCase();
+      if (p) exactPhrases.push(p);
+    } else if (m[2]) terms.push(m[2].toLowerCase());
+  }
+  return { terms: terms, exactPhrases: exactPhrases };
+}
+
+/** Check if searchable text matches an exact phrase (word boundary for single word, exact string for multi-word) */
+function matchesExactPhrase(searchable, phrase) {
+  if (!phrase) return true;
+  if (phrase.indexOf(' ') >= 0) return searchable.indexOf(phrase) !== -1;
+  var re = new RegExp('\\b' + escapeRegex(phrase) + '\\b', 'i');
+  return re.test(searchable);
+}
+
 /** Apply yellow highlight to search terms in timeline item HTML (only in text between tags) */
 function highlightTermsInHtml(html, terms) {
   if (!terms || terms.length === 0) return html;
@@ -934,8 +957,11 @@ function setupTimelineSearch() {
   var total = items.length;
 
   window._timelineFilterFn = function filterTimeline() {
-    var q = (input.value || '').trim().toLowerCase();
-    var terms = q ? q.split(/\s+/).filter(Boolean) : [];
+    var q = (input.value || '').trim();
+    var parsed = parseSearchQuery(q);
+    var terms = parsed.terms;
+    var exactPhrases = parsed.exactPhrases;
+    var allHighlightTerms = terms.concat(exactPhrases);
     var labelsIn = [];
     var labelsOut = [];
     var chips = document.querySelectorAll('.timeline-label-chip');
@@ -950,7 +976,9 @@ function setupTimelineSearch() {
     items.forEach(function (item) {
       var searchable = (item.getAttribute('data-searchable') || '').toLowerCase();
       var itemLabel = item.getAttribute('data-label') || '';
-      var textMatch = terms.length === 0 || terms.every(function (t) { return searchable.indexOf(t) !== -1; });
+      var termsMatch = terms.length === 0 || terms.every(function (t) { return searchable.indexOf(t) !== -1; });
+      var exactMatch = exactPhrases.length === 0 || exactPhrases.every(function (p) { return matchesExactPhrase(searchable, p); });
+      var textMatch = termsMatch && exactMatch;
       var labelMatch = true;
       if (labelsIn.length > 0) labelMatch = labelsIn.indexOf(itemLabel) !== -1;
       if (labelsOut.length > 0 && labelMatch) labelMatch = labelsOut.indexOf(itemLabel) === -1;
@@ -960,7 +988,7 @@ function setupTimelineSearch() {
 
       if (!item.dataset.originalHtml) item.dataset.originalHtml = item.innerHTML;
       var baseHtml = item.dataset.originalHtml;
-      item.innerHTML = terms.length > 0 ? highlightTermsInHtml(baseHtml, terms) : baseHtml;
+      item.innerHTML = allHighlightTerms.length > 0 ? highlightTermsInHtml(baseHtml, allHighlightTerms) : baseHtml;
     });
 
     var hasFilter = q || labelsIn.length > 0 || labelsOut.length > 0;
@@ -1452,7 +1480,7 @@ function runAnalysis(container) {
   results += '<span class="rounded bg-indigo-100 border border-indigo-200 px-2 py-1 text-slate-800 text-sm font-medium"><i class="fas fa-tachometer-alt mr-1"></i>Total Hits: ' + totalHits + '</span>';
   results += '</div>';
   results += '<div class="timeline-search-bar mb-2">';
-  results += '<input type="text" id="timelineSearchInput" placeholder="Search all logs (time, label, message, level, params)…" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" autocomplete="off" />';
+  results += '<input type="text" id="timelineSearchInput" placeholder="Search all logs (time, label, message, level, params). Use \"quotes\" for exact word…" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" autocomplete="off" />';
   results += '<span id="timelineSearchCount" class="hidden text-xs text-slate-500 mt-1"></span>';
   results += '</div>';
   results += '<div id="timelineFavorites" class="flex flex-wrap items-center gap-2 mb-2">';
