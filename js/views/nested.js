@@ -207,7 +207,9 @@
 
   function render() {
     return ''
-    + '<div class="mb-6">'
+    + '<div class="relative">'
+    + '<button type="button" id="nestedRefreshBtn" class="absolute top-0 right-0 p-2.5 rounded-lg text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 transition font-medium" title="Reset all"><i class="fas fa-sync-alt text-base"></i></button>'
+    + '<div class="mb-6 pr-10">'
     + '  <p class="' + labelCls + '">Select Query Type:</p>'
     + '  <div class="flex flex-wrap gap-4">'
     + '    <label class="flex items-center gap-2 cursor-pointer">'
@@ -584,6 +586,7 @@
     + '    </div>'
     + '  </div>'
 
+    + '</div>'
     + '</div>';
   }
 
@@ -1136,10 +1139,50 @@
     }
   }
 
+  // ─── Reset All ────────────────────────────────────────────────────
+
+  function resetAllNested(container) {
+    var r = root(container);
+    var clear = function (id) { var el = byId(id, r); if (el && el.value !== undefined) el.value = ''; };
+    var clearReadonly = function (id) { var el = byId(id, r); if (el) el.value = ''; };
+    clear('jsonInput');
+    clearReadonly('nestedOutput');
+    clear('textQueryInput');
+    var textOutput = byId('textQueryOutput', r);
+    if (textOutput) { textOutput.classList.add('hidden'); }
+    var textDsl = byId('textQueryDsl', r);
+    if (textDsl) textDsl.textContent = '';
+    clear('jsonInput2');
+    clearReadonly('jsonOutput2');
+    clear('aggJsonInput');
+    clearReadonly('alertOutput');
+    var aiRequest = byId('aiRequestInput', r);
+    if (aiRequest) aiRequest.value = 'Find all payment failures from collect_service in the last 10 minutes, exclude insufficient balance errors';
+    var aiRaw = byId('aiRawOutput', r);
+    if (aiRaw) aiRaw.textContent = '';
+    var aiResults = byId('aiResultsPanel', r);
+    if (aiResults) aiResults.classList.add('hidden');
+    var aiDsl = byId('aiDslPanel', r);
+    if (aiDsl) aiDsl.classList.add('hidden');
+    var queryInputs = byId('queryInputs', r);
+    if (queryInputs) queryInputs.innerHTML = '';
+    var alertRadio = byId('alertQueryRadio', r);
+    var aiRadio = byId('aiQueryRadio', r);
+    if (alertRadio) alertRadio.checked = true;
+    if (aiRadio) aiRadio.checked = true;
+    createConditionRow(container);
+    handleConvertButtonClick(container);
+    handleQueryMethodChange(container);
+  }
+
   // ─── Mount ───────────────────────────────────────────────────────
 
   function mount(container) {
     var r = root(container);
+
+    // Refresh
+    var refreshBtn = byId('nestedRefreshBtn', r);
+    if (refreshBtn) refreshBtn.addEventListener('click', function () { resetAllNested(container); });
 
     // Query type radios
     var nestedRadio = byId('nestedQueryRadio', r);

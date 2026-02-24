@@ -15,7 +15,9 @@ function byId(id, container) {
 
 function render() {
   return `
-    <h2 class="text-xl font-bold text-slate-800 mb-4">Payouts Email Generator</h2>
+    <div class="relative">
+    <button type="button" id="emailRefreshBtn" class="absolute top-0 right-0 p-2.5 rounded-lg text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 transition font-medium" title="Reset all"><i class="fas fa-sync-alt text-base"></i></button>
+    <h2 class="text-xl font-bold text-slate-800 mb-4 pr-10">Payouts Email Generator</h2>
     <form id="payoutsForm">
       <label for="payoutData" class="block text-sm font-medium text-slate-700 mb-1">Paste Payout Data:</label>
       <textarea id="payoutData" rows="10" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm resize-none" placeholder="Paste your payout data here..."></textarea>
@@ -24,6 +26,7 @@ function render() {
       </div>
     </form>
     <div id="output" class="mt-6 email-output space-y-4"></div>
+    </div>
   `;
 }
 
@@ -276,10 +279,20 @@ function generateEmails(container) {
   });
 }
 
+function resetAllEmail(container) {
+  const r = root(container);
+  const payoutDataEl = byId('payoutData', r);
+  const outputDiv = byId('output', r);
+  if (payoutDataEl) payoutDataEl.value = '';
+  if (outputDiv) outputDiv.innerHTML = '';
+}
+
 function mount(container) {
   const r = root(container);
   const btn = byId('generateEmailsBtn', r);
   if (btn) btn.addEventListener('click', function () { generateEmails(container); });
+  const refreshBtn = byId('emailRefreshBtn', r);
+  if (refreshBtn) refreshBtn.addEventListener('click', function () { resetAllEmail(container); });
 }
 
 var emailView = {

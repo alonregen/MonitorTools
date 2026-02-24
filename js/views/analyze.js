@@ -18,7 +18,9 @@ var EXPLAINED_IMAGE_PATH = 'img/explained-opensearch-inspect.png';
 
 function render() {
   return `
-    <h2 class="text-xl font-bold text-slate-800 mb-2">Log Analysis</h2>
+    <div class="relative">
+    <button type="button" id="analyzeRefreshBtn" class="absolute top-0 right-0 p-2.5 rounded-lg text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 transition font-medium" title="Reset all"><i class="fas fa-sync-alt text-base"></i></button>
+    <h2 class="text-xl font-bold text-slate-800 mb-2 pr-10">Log Analysis</h2>
     <div class="flex flex-wrap items-center gap-2 mb-2">
       <p class="text-slate-600 text-sm m-0">Paste your logs below:</p>
       <button type="button" id="logExplainBtn" class="inline-flex items-center justify-center w-7 h-7 rounded-full border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-indigo-600 transition" title="How to get logs from OpenSearch"><i class="fas fa-info-circle text-sm"></i></button>
@@ -29,7 +31,7 @@ function render() {
     <textarea id="logInput" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm resize-none" rows="15" placeholder="OpenSearch -> Get all the hits for the operation ID -> Inspect > Response -> Copy button -> Paste your logs here..."></textarea>
     <div class="mt-4 pt-4 border-t border-slate-200">
       <button class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="analyzeBtn"><i class="fas fa-chart-line"></i> Analyze Logs</button>
-      <button class="inline-flex items-center gap-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm ml-2" type="button" id="demoBtn" title="Paste sample logs with anonymized data"><i class="fas fa-magic"></i> Demo</button>
+      <button class="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 px-5 py-2.5 text-sm font-medium transition shadow-sm ml-2" type="button" id="demoBtn" title="Paste sample logs with anonymized data"><i class="fas fa-magic"></i> Demo</button>
       <button class="inline-flex items-center gap-2 rounded-lg bg-red-600 hover:bg-red-700 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm ml-2" type="button" id="clearBtn"><i class="fas fa-trash-alt"></i> Clear</button>
     </div>
     <div id="logExplainModal" class="hidden fixed inset-0 z-[999] flex items-center justify-center p-4" style="background:rgba(0,0,0,0.6)">
@@ -44,6 +46,7 @@ function render() {
     <div id="emailOutput" class="mt-6 hidden">
       <h4 class="text-lg font-semibold text-slate-800 mb-2">Generated Email:</h4>
       <pre id="generatedEmail"></pre>
+    </div>
     </div>
   `;
 }
@@ -1387,9 +1390,11 @@ function clearAll(container) {
   var logsEl = byId('logInput', r);
   var resultsEl = byId('analysisResults', r);
   var emailOutputEl = document.getElementById('emailOutput');
+  var thumbWrap = document.getElementById('logExplainThumbnail');
   if (logsEl) logsEl.value = '';
   if (resultsEl) resultsEl.innerHTML = '<span class="text-sm text-slate-600">Results will appear here...</span>';
   if (emailOutputEl) { emailOutputEl.classList.add('hidden'); emailOutputEl.innerHTML = '<h4 class="text-lg font-semibold text-slate-800 mb-2">Generated Email:</h4><pre id="generatedEmail"></pre>'; }
+  if (thumbWrap) thumbWrap.style.display = '';
 }
 
 function setupExplainImage(container) {
@@ -1452,6 +1457,8 @@ function mount(container) {
     }
   });
   if (clearBtnEl) clearBtnEl.addEventListener('click', function () { clearAll(container); });
+  var refreshBtnEl = byId('analyzeRefreshBtn', r);
+  if (refreshBtnEl) refreshBtnEl.addEventListener('click', function () { clearAll(container); });
   setupExplainImage(container);
 }
 

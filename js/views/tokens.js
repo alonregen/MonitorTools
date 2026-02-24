@@ -64,7 +64,9 @@ function _byId(id, c) {
 /* ── render ───────────────────────────────────────────────── */
 function render() {
   return [
-    '<h2 class="text-xl font-bold text-slate-800 mb-2">Payment / Payout Token Extractor</h2>',
+    '<div class="relative">',
+    '<button type="button" id="tokensRefreshBtn" class="absolute top-0 right-0 p-2.5 rounded-lg text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 transition font-medium" title="Reset all"><i class="fas fa-sync-alt text-base"></i></button>',
+    '<h2 class="text-xl font-bold text-slate-800 mb-2 pr-10">Payment / Payout Token Extractor</h2>',
     '<p class="text-slate-600 text-sm mb-4">Paste text or select files, then click <strong>Extract</strong>. Use the Custom field to find tokens with any prefix.</p>',
 
     /* ── file upload ── */
@@ -99,7 +101,7 @@ function render() {
     /* ── buttons row: Extract + Demo + Advanced ── */
     '<div class="mt-4 pt-4 border-t border-slate-200 flex flex-wrap items-center gap-3">',
     '  <button class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="extractTokensBtn"><i class="fas fa-bolt"></i> Extract Tokens</button>',
-    '  <button class="inline-flex items-center gap-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="tokensDemoBtn" title="Paste sample text with mock tokens"><i class="fas fa-magic"></i> Demo</button>',
+    '  <button class="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 px-5 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="tokensDemoBtn" title="Paste sample text with mock tokens"><i class="fas fa-magic"></i> Demo</button>',
     '  <button class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="tokenAdvancedBtn"><i class="fas fa-sliders-h"></i> Advanced Settings</button>',
     '  <span id="tokenAdvancedBadge" class="hidden inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-700"><i class="fas fa-check-circle text-[10px]"></i> Custom settings active</span>',
     '</div>',
@@ -242,6 +244,7 @@ function render() {
     '      <ol id="customTokensList" class="list-decimal list-inside text-sm text-slate-700 space-y-1"></ol>',
     '    </div>',
     '  </div>',
+    '</div>',
     '</div>',
 
     /* ══════ Compare Tokens Modal ══════ */
@@ -670,6 +673,24 @@ function getFilesContent() {
   return parts.join('\n');
 }
 
+/* ── reset all (refresh) ──────────────────────────────────── */
+function resetAllTokens(c) {
+  var input = _byId('inputData', c);
+  var customPattern = _byId('tokenCustomPattern', c);
+  var searchInput = document.getElementById('tokensSearch');
+  var fileInput = _byId('tokenFiles', c);
+  var compareModal = _byId('tokensCompareModal', c);
+  var compareInput = _byId('tokensCompareInput', c);
+  if (input) input.value = '';
+  if (customPattern) customPattern.value = '';
+  if (searchInput) searchInput.value = '';
+  if (fileInput) fileInput.value = '';
+  if (compareInput) compareInput.value = '';
+  if (compareModal) compareModal.classList.add('hidden');
+  clearAllFiles(c);
+  resetResults(c);
+}
+
 /* ── reset results ────────────────────────────────────────── */
 function resetResults(c) {
   lastPaymentTokens = [];
@@ -920,6 +941,9 @@ function mount(c) {
   /* Extract button */
   var btn = _byId('extractTokensBtn', c);
   if (btn) btn.addEventListener('click', function () { extractPaymentAndPayoutTokens(c); });
+
+  var refreshBtn = _byId('tokensRefreshBtn', c);
+  if (refreshBtn) refreshBtn.addEventListener('click', function () { resetAllTokens(c); });
 
   var demoBtn = _byId('tokensDemoBtn', c);
   if (demoBtn) demoBtn.addEventListener('click', function () {
