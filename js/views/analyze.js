@@ -882,6 +882,14 @@ function parseSearchSegment(segment) {
   return { terms: terms, exactPhrases: exactPhrases };
 }
 
+/** Expand segment into one segment per term/phrase so "timeout al" -> [timeout], [al] not [timeout, al] */
+function expandAndSegments(seg) {
+  var out = [];
+  seg.terms.forEach(function (t) { out.push({ terms: [t], exactPhrases: [] }); });
+  seg.exactPhrases.forEach(function (p) { out.push({ terms: [], exactPhrases: [p] }); });
+  return out;
+}
+
 /** Parse search query: "quoted" = exact match, unquoted = substring. Uppercase OR = logical OR, AND = all in same log. */
 function parseSearchQuery(q) {
   var orParts = q.split(/\s+OR\s+/);
@@ -889,16 +897,22 @@ function parseSearchQuery(q) {
   var groups = [];
   orParts.forEach(function (orPart) {
     var andParts = orPart.split(/\s+AND\s+/);
-    var andSegments = andParts.map(function (p) { return parseSearchSegment(p.trim()); }).filter(function (g) {
+    var andSegments = [];
+    andParts.forEach(function (p) {
+      var seg = parseSearchSegment(p.trim());
+      andSegments = andSegments.concat(expandAndSegments(seg));
+    });
+    andSegments = andSegments.filter(function (g) {
       return g.terms.length > 0 || g.exactPhrases.length > 0;
     });
     if (andSegments.length > 0) groups.push({ andSegments: andSegments });
   });
   if (groups.length === 0 && orParts.length >= 1) {
     var fallback = parseSearchSegment(orParts[0].trim());
-    if (fallback.terms.length > 0 || fallback.exactPhrases.length > 0) {
-      groups.push({ andSegments: [fallback] });
-    }
+    var expanded = expandAndSegments(fallback).filter(function (g) {
+      return g.terms.length > 0 || g.exactPhrases.length > 0;
+    });
+    if (expanded.length > 0) groups.push({ andSegments: expanded });
   }
   return { groups: groups, useOr: useOr };
 }
