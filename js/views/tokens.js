@@ -35,6 +35,7 @@ function _getDefaultExcludeRegexes() {
 }
 var lastPaymentTokens = [];
 var lastPayoutTokens = [];
+var lastCardPaymentTokens = [];
 var lastCustomTokens = [];
 var loadedFiles = [];  /* [{name, size, content}] – accumulated across picks */
 
@@ -66,7 +67,7 @@ function render() {
   return [
     '<div class="relative">',
     '<button type="button" id="tokensRefreshBtn" class="absolute top-0 right-0 p-2.5 rounded-lg text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 transition font-medium" title="Reset all"><i class="fas fa-sync-alt text-base"></i></button>',
-    '<h2 class="text-xl font-bold text-slate-800 mb-2 pr-10">Payment / Payout Token Extractor</h2>',
+    '<h2 class="text-xl font-bold text-slate-800 mb-2 pr-10">Payment / Payout / Card Payment Token Extractor</h2>',
     '<p class="text-slate-600 text-sm mb-4">Paste text or select files, then click <strong>Extract</strong>. Use the Custom field to find tokens with any prefix.</p>',
 
     /* ── file upload ── */
@@ -187,7 +188,7 @@ function render() {
     /* ── results area (Total full-width row, 3-col lists) ── */
     '<div id="output" class="token-container mt-8">',
     '  <div id="tokensResultHeader" class="hidden mb-6 space-y-4">',
-    '    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3" id="tokenCardsGrid">',
+    '    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3" id="tokenCardsGrid">',
     '      <div id="tokenCardPayment" class="rounded-2xl border-2 border-indigo-200 bg-gradient-to-br from-indigo-50 to-white p-4 shadow-sm text-center">',
     '        <div id="tokenCountPayment" class="text-2xl font-bold text-indigo-700">0</div>',
     '        <div class="text-xs font-medium text-slate-600 uppercase tracking-wide mt-0.5">Payment</div>',
@@ -195,6 +196,10 @@ function render() {
     '      <div id="tokenCardPayout" class="rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-emerald-50 to-white p-4 shadow-sm text-center">',
     '        <div id="tokenCountPayout" class="text-2xl font-bold text-emerald-700">0</div>',
     '        <div class="text-xs font-medium text-slate-600 uppercase tracking-wide mt-0.5">Payout</div>',
+    '      </div>',
+    '      <div id="tokenCardCardPayment" class="rounded-2xl border-2 border-violet-200 bg-gradient-to-br from-violet-50 to-white p-4 shadow-sm text-center hidden">',
+    '        <div id="tokenCountCardPayment" class="text-2xl font-bold text-violet-700">0</div>',
+    '        <div class="text-xs font-medium text-slate-600 uppercase tracking-wide mt-0.5">Card Payment</div>',
     '      </div>',
     '      <div id="tokenCardCustom" class="rounded-2xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-white p-4 shadow-sm text-center hidden">',
     '        <div id="tokenCountCustom" class="text-2xl font-bold text-amber-700">0</div>',
@@ -221,7 +226,7 @@ function render() {
     '  </div>',
 
     /* token list columns: 2 when no custom, 3 when custom filled */
-    '  <div class="grid grid-cols-1 md:grid-cols-2 gap-4" id="tokenListsGrid">',
+    '  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="tokenListsGrid">',
     '    <div class="token-box rounded-xl border border-slate-200 bg-slate-50 p-4 min-h-[200px] overflow-y-auto">',
     '      <div class="flex items-center justify-between mb-2">',
     '        <h3 class="text-sm font-semibold text-slate-800">Payment Tokens:</h3>',
@@ -235,6 +240,13 @@ function render() {
     '        <button type="button" id="copyPayoutTokensBtn" class="copy-tokens-btn inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 text-xs font-medium transition shadow-sm hidden"><i class="fas fa-copy"></i> Copy</button>',
     '      </div>',
     '      <ol id="payoutTokensList" class="list-decimal list-inside text-sm text-slate-700 space-y-1"></ol>',
+    '    </div>',
+    '    <div id="cardPaymentTokensCol" class="token-box rounded-xl border border-slate-200 bg-slate-50 p-4 min-h-[200px] overflow-y-auto hidden">',
+    '      <div class="flex items-center justify-between mb-2">',
+    '        <h3 class="text-sm font-semibold text-slate-800">Card Payment Tokens:</h3>',
+    '        <button type="button" id="copyCardPaymentTokensBtn" class="copy-tokens-btn inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 text-xs font-medium transition shadow-sm hidden"><i class="fas fa-copy"></i> Copy</button>',
+    '      </div>',
+    '      <ol id="cardPaymentTokensList" class="list-decimal list-inside text-sm text-slate-700 space-y-1"></ol>',
     '    </div>',
     '    <div id="customTokensCol" class="token-box rounded-xl border border-slate-200 bg-slate-50 p-4 min-h-[200px] overflow-y-auto hidden">',
     '      <div class="flex items-center justify-between mb-2">',
@@ -288,12 +300,15 @@ function generateDemoTokens() {
   var pay2 = 'pay_' + randomHex(24);
   var out1 = 'payout_' + randomHex(24);
   var out2 = 'payout_' + randomHex(24);
+  var card1 = 'card_' + randomHex(24);
   var ref = 'ref_' + randomHex(12);
   return [
     'Log entry: payment_token: ' + pay1 + ' status=failed',
     '{"payment_token":"' + pay2 + '","gateway":"stripe","amount":49.99}',
     'payout_token: ' + out1 + ' | reference_id: ' + ref,
     '"payout_token":"' + out2 + '"',
+    'payment_method: ' + card1 + ' (card payment)',
+    '"payment_method":"' + card1 + '"',
     'payment_token=' + pay1 + ' failure_code=card_declined',
     'PAYMENT_FAILED payment_token: ' + pay2 + ' gateway_name: stripe_demo'
   ].join('\n');
@@ -380,8 +395,10 @@ function tokenCharClass(chars) {
 function extractLabelPairTokens(text) {
   var paymentRe = /['"]?payment_token['"]?\s*[:=]+>?\s*['"]?([^\s'",$\n})\]]+)/gi;
   var payoutRe  = /['"]?payout_token['"]?\s*[:=]+>?\s*['"]?([^\s'",$\n})\]]+)/gi;
+  var paymentMethodRe = /['"]?payment_method['"]?\s*[:=]+>?\s*['"]?([^\s'",$\n})\]]+)/gi;
   var payment = [];
   var payout = [];
+  var cardPayment = [];
   var m;
   while ((m = paymentRe.exec(text)) !== null) {
     var t = m[1].replace(/['",;:]+$/g, '');
@@ -391,7 +408,11 @@ function extractLabelPairTokens(text) {
     var t2 = m[1].replace(/['",;:]+$/g, '');
     if (t2) payout.push(t2);
   }
-  return { payment: payment, payout: payout };
+  while ((m = paymentMethodRe.exec(text)) !== null) {
+    var t3 = m[1].replace(/['",;:]+$/g, '');
+    if (t3 && String(t3).toLowerCase().startsWith('card_')) cardPayment.push(t3);
+  }
+  return { payment: payment, payout: payout, cardPayment: cardPayment };
 }
 
 function extractPrefixTokens(text, minLen, chars) {
@@ -425,10 +446,12 @@ function runExtraction(c, text) {
   var payoutTokens = [];
 
   /* 1) label pairs */
+  var cardPaymentTokens = [];
   if (opts.extractLabelPairs) {
     var lp = extractLabelPairTokens(text);
     paymentTokens = paymentTokens.concat(lp.payment);
     payoutTokens  = payoutTokens.concat(lp.payout);
+    cardPaymentTokens = cardPaymentTokens.concat(lp.cardPayment || []);
   }
 
   /* 2) prefix match */
@@ -449,14 +472,17 @@ function runExtraction(c, text) {
   }
   lastPaymentTokens = Array.from(new Set(paymentTokens)).filter(notEmpty);
   lastPayoutTokens  = Array.from(new Set(payoutTokens)).filter(notEmpty);
+  lastCardPaymentTokens = Array.from(new Set(cardPaymentTokens)).filter(notEmpty);
 
   /* 4) exclude – default regex rules when Advanced OFF, else user exclude list */
   if (opts.useDefaultExcludeRegex) {
     lastPaymentTokens = lastPaymentTokens.filter(function (t) { return !defaultExcludeToken(t); });
     lastPayoutTokens  = lastPayoutTokens.filter(function (t) { return !defaultExcludeToken(t); });
+    lastCardPaymentTokens = lastCardPaymentTokens.filter(function (t) { return !defaultExcludeToken(t); });
   } else if (opts.excludeList.length) {
     lastPaymentTokens = lastPaymentTokens.filter(function (t) { return !shouldExcludeToken(t, opts.excludeList); });
     lastPayoutTokens  = lastPayoutTokens.filter(function (t) { return !shouldExcludeToken(t, opts.excludeList); });
+    lastCardPaymentTokens = lastCardPaymentTokens.filter(function (t) { return !shouldExcludeToken(t, opts.excludeList); });
   }
 
   /* 5) custom pattern */
@@ -492,15 +518,22 @@ function runExtraction(c, text) {
   if (customTitle) customTitle.textContent = customPattern ? 'Custom Tokens (' + dom.escapeHtml(customPattern) + ')' : 'Custom Tokens';
   if (customLabel) customLabel.textContent = customPattern ? 'Custom (' + dom.escapeHtml(customPattern) + ')' : 'Custom';
 
+  var cardPaymentCard = document.getElementById('tokenCardCardPayment');
+  var cardPaymentCol = document.getElementById('cardPaymentTokensCol');
+  var hasCardPayment = lastCardPaymentTokens.length > 0;
+  if (cardPaymentCard) cardPaymentCard.classList.toggle('hidden', !hasCardPayment);
+  if (cardPaymentCol) cardPaymentCol.classList.toggle('hidden', !hasCardPayment);
+
   var cardsGrid = document.getElementById('tokenCardsGrid');
   var listsGrid = document.getElementById('tokenListsGrid');
+  var visibleCols = 2 + (hasCardPayment ? 1 : 0) + (hasCustom ? 1 : 0);
   if (cardsGrid) {
-    cardsGrid.classList.remove('sm:grid-cols-2', 'sm:grid-cols-3');
-    cardsGrid.classList.add(hasCustom ? 'sm:grid-cols-3' : 'sm:grid-cols-2');
+    cardsGrid.classList.remove('sm:grid-cols-2', 'sm:grid-cols-3', 'md:grid-cols-4');
+    cardsGrid.classList.add(visibleCols >= 4 ? 'md:grid-cols-4' : visibleCols === 3 ? 'sm:grid-cols-3' : 'sm:grid-cols-2');
   }
   if (listsGrid) {
-    listsGrid.classList.remove('md:grid-cols-2', 'md:grid-cols-3');
-    listsGrid.classList.add(hasCustom ? 'md:grid-cols-3' : 'md:grid-cols-2');
+    listsGrid.classList.remove('md:grid-cols-2', 'lg:grid-cols-3', 'lg:grid-cols-4');
+    listsGrid.classList.add(visibleCols >= 4 ? 'lg:grid-cols-4' : visibleCols === 3 ? 'lg:grid-cols-3' : 'md:grid-cols-2');
   }
 
   clearError(c);
@@ -519,9 +552,11 @@ function applyTokenListFilter(c, query) {
   var filterFn = function (token) { return isValidToken(token) && (!q || String(token).toLowerCase().indexOf(q) !== -1); };
   var pay = (Array.isArray(lastPaymentTokens) ? lastPaymentTokens : []).filter(isValidToken);
   var out = (Array.isArray(lastPayoutTokens) ? lastPayoutTokens : []).filter(isValidToken);
+  var card = (Array.isArray(lastCardPaymentTokens) ? lastCardPaymentTokens : []).filter(isValidToken);
   var cust = (Array.isArray(lastCustomTokens) ? lastCustomTokens : []).filter(isValidToken);
   var paymentFiltered = pay.filter(filterFn);
   var payoutFiltered  = out.filter(filterFn);
+  var cardPaymentFiltered = card.filter(filterFn);
   var customFiltered  = cust.filter(filterFn);
 
   function buildList(arr, emptyMsg) {
@@ -538,24 +573,29 @@ function applyTokenListFilter(c, query) {
 
   var paymentEl = document.getElementById('paymentTokensList');
   var payoutEl  = document.getElementById('payoutTokensList');
+  var cardPaymentEl = document.getElementById('cardPaymentTokensList');
   var customEl  = document.getElementById('customTokensList');
   if (paymentEl) paymentEl.innerHTML = buildList(paymentFiltered, 'No payment tokens found.');
   if (payoutEl)  payoutEl.innerHTML  = buildList(payoutFiltered, 'No payout tokens found.');
+  if (cardPaymentEl) cardPaymentEl.innerHTML = buildList(cardPaymentFiltered, 'No card payment tokens found.');
   if (customEl)  customEl.innerHTML  = buildList(customFiltered, 'No custom tokens found.');
   
   // Show/hide copy buttons based on whether there are tokens
   var copyPaymentBtn = document.getElementById('copyPaymentTokensBtn');
   var copyPayoutBtn = document.getElementById('copyPayoutTokensBtn');
+  var copyCardPaymentBtn = document.getElementById('copyCardPaymentTokensBtn');
   var copyCustomBtn = document.getElementById('copyCustomTokensBtn');
   if (copyPaymentBtn) copyPaymentBtn.classList.toggle('hidden', paymentFiltered.length === 0);
   if (copyPayoutBtn) copyPayoutBtn.classList.toggle('hidden', payoutFiltered.length === 0);
+  if (copyCardPaymentBtn) copyCardPaymentBtn.classList.toggle('hidden', cardPaymentFiltered.length === 0);
   if (copyCustomBtn) copyCustomBtn.classList.toggle('hidden', customFiltered.length === 0);
 
-  var totalFiltered = paymentFiltered.length + payoutFiltered.length + customFiltered.length;
-  var totalAll = pay.length + out.length + cust.length;
+  var totalFiltered = paymentFiltered.length + payoutFiltered.length + cardPaymentFiltered.length + customFiltered.length;
+  var totalAll = pay.length + out.length + card.length + cust.length;
 
   var countPay  = document.getElementById('tokenCountPayment');
   var countOut  = document.getElementById('tokenCountPayout');
+  var countCard = document.getElementById('tokenCountCardPayment');
   var countCust = document.getElementById('tokenCountCustom');
   var countTot  = document.getElementById('tokenCountTotal');
   var summary   = document.getElementById('tokensSearchSummary');
@@ -563,6 +603,7 @@ function applyTokenListFilter(c, query) {
 
   if (countPay)  countPay.textContent  = paymentFiltered.length;
   if (countOut)  countOut.textContent  = payoutFiltered.length;
+  if (countCard) countCard.textContent = cardPaymentFiltered.length;
   if (countCust) countCust.textContent = customFiltered.length;
   if (countTot)  countTot.textContent  = totalFiltered;
   if (summary) {
@@ -695,6 +736,7 @@ function resetAllTokens(c) {
 function resetResults(c) {
   lastPaymentTokens = [];
   lastPayoutTokens = [];
+  lastCardPaymentTokens = [];
   lastCustomTokens = [];
   var header = document.getElementById('tokensResultHeader');
   if (header) header.classList.add('hidden');
@@ -702,9 +744,11 @@ function resetResults(c) {
   if (outputDiv) { outputDiv.classList.remove('visible'); outputDiv.style.display = ''; }
   var paymentEl = document.getElementById('paymentTokensList');
   var payoutEl = document.getElementById('payoutTokensList');
+  var cardPaymentEl = document.getElementById('cardPaymentTokensList');
   var customEl = document.getElementById('customTokensList');
   if (paymentEl) paymentEl.innerHTML = '';
   if (payoutEl) payoutEl.innerHTML = '';
+  if (cardPaymentEl) cardPaymentEl.innerHTML = '';
   if (customEl) customEl.innerHTML = '';
   clearError(c);
 }
@@ -853,6 +897,7 @@ function runCompare(c) {
   var extracted = [].concat(
     (lastPaymentTokens || []).filter(isValidToken),
     (lastPayoutTokens || []).filter(isValidToken),
+    (lastCardPaymentTokens || []).filter(isValidToken),
     (lastCustomTokens || []).filter(isValidToken)
   );
   extracted = Array.from(new Set(extracted));
@@ -1088,6 +1133,27 @@ function mount(c) {
             setTimeout(function() {
               copyPayoutBtn.innerHTML = originalHtml;
               copyPayoutBtn.classList.remove('bg-indigo-700');
+            }, 2000);
+          }
+        });
+      }
+    });
+  }
+
+  var copyCardPaymentBtn = _byId('copyCardPaymentTokensBtn', c);
+  if (copyCardPaymentBtn) {
+    copyCardPaymentBtn.addEventListener('click', function() {
+      var tokens = lastCardPaymentTokens.filter(isValidToken);
+      var text = tokens.join('\n');
+      if (text && dom.copyToClipboard) {
+        dom.copyToClipboard(text).then(function(success) {
+          if (success) {
+            var originalHtml = copyCardPaymentBtn.innerHTML;
+            copyCardPaymentBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            copyCardPaymentBtn.classList.add('bg-indigo-700');
+            setTimeout(function() {
+              copyCardPaymentBtn.innerHTML = originalHtml;
+              copyCardPaymentBtn.classList.remove('bg-indigo-700');
             }, 2000);
           }
         });

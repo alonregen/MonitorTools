@@ -259,6 +259,8 @@ function fullLogHtml(hit) {
 }
 
 const fieldIcons = {
+  operation_id: 'fas fa-fingerprint',
+  instance_id: 'fas fa-server',
   payment_token: 'fas fa-credit-card',
   payment_status: 'fas fa-info-circle',
   payment_original_amount: 'fas fa-dollar-sign',
@@ -266,6 +268,7 @@ const fieldIcons = {
   payment_failure_code: 'fas fa-exclamation-triangle',
   payment_failure_message: 'fas fa-comment-dots',
   payment_method_type_type: 'fas fa-credit-card',
+  payment_method: 'fas fa-credit-card',
   reference_id: 'fas fa-id-badge',
   gateway: 'fas fa-network-wired',
   payout_token: 'fas fa-credit-card',
@@ -287,22 +290,65 @@ var payoutFields = [
   'payout_token', 'payout_status', 'payout_original_amount', 'payout_currency_code',
   'payout_failure_code', 'payout_failure_message', 'payout_method_type_type'
 ];
+var cardPaymentFields = [
+  'payment_method', 'payment_status', 'payment_original_amount', 'payment_currency_code',
+  'payment_failure_code', 'payment_failure_message'
+];
 var refundFields = ['refund_token'];
 var sharedFields = ['reference_id', 'gateway', 'quarantined_item_id'];
-var allDetailFields = paymentFields.concat(payoutFields).concat(refundFields).concat(sharedFields);
+var coreLogFields = ['operation_id', 'instance_id'];
+var allDetailFields = coreLogFields.concat(paymentFields).concat(payoutFields).concat(['payment_method']).concat(refundFields).concat(sharedFields);
+
+/** Fields to show last in the details table (operation_id, instance_id) */
+var fieldsLastInTable = ['operation_id', 'instance_id'];
+
+function hasCardPayment(uniqueDetails) {
+  var pm = uniqueDetails.payment_method;
+  return pm && String(pm).trim().toLowerCase().startsWith('card_');
+}
 
 function getVisibleFields(uniqueDetails) {
   var hasPayment = !!uniqueDetails.payment_token;
   var hasPayout = !!uniqueDetails.payout_token;
   var hasRefund = !!uniqueDetails.refund_token;
-  if (hasPayment && hasPayout && hasRefund) return allDetailFields;
-  if (hasPayment && hasPayout) return paymentFields.concat(payoutFields).concat(sharedFields);
-  if (hasPayout && hasRefund) return payoutFields.concat(refundFields).concat(sharedFields);
-  if (hasPayment && hasRefund) return paymentFields.concat(refundFields).concat(sharedFields);
-  if (hasRefund) return refundFields.concat(sharedFields);
-  if (hasPayout) return payoutFields.concat(sharedFields);
-  return paymentFields.concat(sharedFields);
+  var hasCard = hasCardPayment(uniqueDetails);
+  var base = [];
+  var rest;
+  if (hasPayment && hasPayout && hasRefund && hasCard) rest = base.concat(paymentFields, payoutFields, cardPaymentFields, refundFields, sharedFields);
+  else if (hasPayment && hasPayout && hasCard) rest = base.concat(paymentFields, payoutFields, cardPaymentFields, sharedFields);
+  else if (hasPayout && hasRefund && hasCard) rest = base.concat(payoutFields, cardPaymentFields, refundFields, sharedFields);
+  else if (hasPayment && hasRefund && hasCard) rest = base.concat(paymentFields, cardPaymentFields, refundFields, sharedFields);
+  else if (hasPayment && hasPayout && hasRefund) rest = base.concat(paymentFields, payoutFields, refundFields, sharedFields);
+  else if (hasPayment && hasPayout) rest = base.concat(paymentFields, payoutFields, sharedFields);
+  else if (hasPayout && hasRefund) rest = base.concat(payoutFields, refundFields, sharedFields);
+  else if (hasPayment && hasRefund) rest = base.concat(paymentFields, refundFields, sharedFields);
+  else if (hasRefund && hasCard) rest = base.concat(cardPaymentFields, refundFields, sharedFields);
+  else if (hasRefund) rest = base.concat(refundFields, sharedFields);
+  else if (hasPayout && hasCard) rest = base.concat(payoutFields, cardPaymentFields, sharedFields);
+  else if (hasPayout) rest = base.concat(payoutFields, sharedFields);
+  else if (hasPayment && hasCard) rest = base.concat(paymentFields, cardPaymentFields, sharedFields);
+  else if (hasCard) rest = base.concat(cardPaymentFields, sharedFields);
+  else rest = base.concat(paymentFields, sharedFields);
+  return rest.concat(fieldsLastInTable);
 }
+
+/** Params-structure keys used in Support/ParsedPayoutData and similar logs */
+var PARAMS_PAYOUT_KEY_MAP = {
+  payout_original_amount: ['amount'],
+  payout_currency_code: ['currency'],
+  payout_failure_code: ['gc_error'],
+  payout_failure_message: ['gc_error'],
+  payout_method_type_type: ['pomt', 'payment_method_type']
+};
+
+/** Params-structure keys used in Support/ParsedPaymentData and similar logs */
+var PARAMS_PAYMENT_KEY_MAP = {
+  payment_original_amount: ['amount'],
+  payment_currency_code: ['currency'],
+  payment_failure_code: ['gc_error'],
+  payment_failure_message: ['failure_message', 'gc_error'],
+  payment_method_type_type: ['pmt', 'payment_method_type']
+};
 
 function buildFieldRegexes(fieldName) {
   var keys = [];
@@ -311,7 +357,7 @@ function buildFieldRegexes(fieldName) {
   } else {
     keys.push(fieldName);
     var stripped = fieldName.replace(/^(payment_|payout_)/, '');
-    if (fieldName.startsWith('payment_') && fieldName !== 'payment_token' && stripped !== 'status') {
+    if (fieldName.startsWith('payment_') && fieldName !== 'payment_token' && fieldName !== 'payment_method' && stripped !== 'status') {
       keys.push(stripped);
     }
     if (fieldName.startsWith('payout_') && fieldName !== 'payout_token' && stripped !== 'status') {
@@ -323,15 +369,68 @@ function buildFieldRegexes(fieldName) {
     if (fieldName === 'payment_method_type_type') {
       keys.push('payment_method_type');
     }
+    if (PARAMS_PAYOUT_KEY_MAP[fieldName]) {
+      keys = keys.concat(PARAMS_PAYOUT_KEY_MAP[fieldName]);
+    }
+    if (PARAMS_PAYMENT_KEY_MAP[fieldName]) {
+      keys = keys.concat(PARAMS_PAYMENT_KEY_MAP[fieldName]);
+    }
   }
   var regexes = [];
   keys.forEach(function (key) {
     regexes.push(new RegExp(key + ":\\s*'([^']+)'?"));
     regexes.push(new RegExp('"' + key + '"\\s*:\\s*"([^"]+)"'));
+    regexes.push(new RegExp('"' + key + '"\\s*:\\s*(-?\\d+(?:\\.\\d+)?)'));  // JSON numeric: "amount":15
     regexes.push(new RegExp(key + "=([^\\s,;&]+)"));
     regexes.push(new RegExp(key + ':\\s*([^\\s,;\\}\\]]+)'));
   });
   return regexes;
+}
+
+/** Parse item to object if it's a JSON string. */
+function tryParseJsonItem(item) {
+  if (typeof item === 'string') {
+    try {
+      return JSON.parse(item);
+    } catch (e) { return null; }
+  }
+  return item && typeof item === 'object' ? item : null;
+}
+
+/** Extract first payout-like object from params (e.g. [[{amount,currency,pomt,gc_error,...}]] or [['{"pomt":...}' ]]). */
+function extractFirstPayoutFromParams(params) {
+  if (!params || typeof params !== 'object') return null;
+  var arr = Array.isArray(params) ? params : [params];
+  for (var i = 0; i < arr.length; i++) {
+    var item = arr[i];
+    var obj = tryParseJsonItem(item);
+    if (obj && !Array.isArray(obj) && (obj.payout_token || obj.amount != null || obj.currency)) {
+      return obj;
+    }
+    if (Array.isArray(item)) {
+      var nested = extractFirstPayoutFromParams(item);
+      if (nested) return nested;
+    }
+  }
+  return null;
+}
+
+/** Extract first payment-like object from params (e.g. [[{"pmt","amount","currency",...}]] or [['{"pmt":...}' ]]). */
+function extractFirstPaymentFromParams(params) {
+  if (!params || typeof params !== 'object') return null;
+  var arr = Array.isArray(params) ? params : [params];
+  for (var i = 0; i < arr.length; i++) {
+    var item = arr[i];
+    var obj = tryParseJsonItem(item);
+    if (obj && !Array.isArray(obj) && (obj.payment_token || obj.amount != null || obj.currency)) {
+      return obj;
+    }
+    if (Array.isArray(item)) {
+      var nested = extractFirstPaymentFromParams(item);
+      if (nested) return nested;
+    }
+  }
+  return null;
 }
 
 function extractUniqueDetails(hits) {
@@ -350,6 +449,72 @@ function extractUniqueDetails(hits) {
         }
       }
     });
+
+    var payoutFromParams = extractFirstPayoutFromParams(source.params);
+    if (payoutFromParams) {
+      if (payoutFromParams.amount != null) {
+        var amt = String(payoutFromParams.amount);
+        if (!uniqueDetails.payout_original_amount || uniqueDetails.payout_original_amount === '0') {
+          uniqueDetails.payout_original_amount = amt;
+        }
+      }
+      if (payoutFromParams.currency) {
+        uniqueDetails.payout_currency_code = String(payoutFromParams.currency);
+      }
+      if (payoutFromParams.gc_error != null && payoutFromParams.gc_error !== '') {
+        var err = String(payoutFromParams.gc_error);
+        if (err !== 'null' && err !== 'undefined') {
+          uniqueDetails.payout_failure_code = err;
+          uniqueDetails.payout_failure_message = err;
+        }
+      }
+      if (payoutFromParams.pomt) {
+        uniqueDetails.payout_method_type_type = String(payoutFromParams.pomt);
+      } else if (payoutFromParams.payment_method_type) {
+        uniqueDetails.payout_method_type_type = String(payoutFromParams.payment_method_type);
+      }
+    }
+
+    var paymentFromParams = extractFirstPaymentFromParams(source.params);
+    if (paymentFromParams) {
+      if (paymentFromParams.payment_token) {
+        uniqueDetails.payment_token = String(paymentFromParams.payment_token);
+      }
+      if (paymentFromParams.amount != null) {
+        var amt = String(paymentFromParams.amount);
+        if (!uniqueDetails.payment_original_amount || uniqueDetails.payment_original_amount === '0') {
+          uniqueDetails.payment_original_amount = amt;
+        }
+      }
+      if (paymentFromParams.currency) {
+        uniqueDetails.payment_currency_code = String(paymentFromParams.currency);
+      }
+      if (paymentFromParams.payment_status) {
+        uniqueDetails.payment_status = String(paymentFromParams.payment_status);
+      }
+      if (paymentFromParams.gc_error != null && paymentFromParams.gc_error !== '' && String(paymentFromParams.gc_error) !== 'null') {
+        var err = String(paymentFromParams.gc_error);
+        if (err !== 'undefined') {
+          uniqueDetails.payment_failure_code = err;
+          uniqueDetails.payment_failure_message = err;
+        }
+      }
+      if (paymentFromParams.failure_message != null && paymentFromParams.failure_message !== '' && String(paymentFromParams.failure_message) !== 'null') {
+        var fm = String(paymentFromParams.failure_message);
+        if (fm !== 'undefined') {
+          uniqueDetails.payment_failure_message = fm;
+          if (!uniqueDetails.payment_failure_code) uniqueDetails.payment_failure_code = fm;
+        }
+      }
+      if (paymentFromParams.pmt) {
+        uniqueDetails.payment_method_type_type = String(paymentFromParams.pmt);
+      } else if (paymentFromParams.payment_method_type) {
+        uniqueDetails.payment_method_type_type = String(paymentFromParams.payment_method_type);
+      }
+      if (paymentFromParams.gateway_name && String(paymentFromParams.gateway_name) !== 'null') {
+        uniqueDetails.gateway = String(paymentFromParams.gateway_name);
+      }
+    }
 
     var searchTexts = [];
     if (source.params != null) {
@@ -493,10 +658,12 @@ function generateOccurrenceHtml(index, details, hit) {
 
 function generateDetailsTable(uniqueDetails) {
   var fields = getVisibleFields(uniqueDetails);
+  var seen = {};
+  fields = fields.filter(function (f) { if (seen[f]) return false; seen[f] = true; return true; });
   var html = '<table class="w-full border-collapse border border-slate-300"><thead><tr class="bg-slate-100"><th class="border border-slate-300 px-3 py-2 text-left text-sm font-semibold">Field</th><th class="border border-slate-300 px-3 py-2 text-left text-sm font-semibold">Value</th></tr></thead><tbody>';
   fields.forEach(function (field) {
     var icon = fieldIcons[field] || 'fas fa-question-circle';
-    var value = uniqueDetails[field] || '-----';
+    var value = uniqueDetails[field] || 'N/A';
     var valueCls = uniqueDetails[field] ? '' : ' text-slate-400 italic';
     var isFailureMessage = field.includes('failure_message');
     var wrapCls = isFailureMessage ? ' break-words whitespace-normal max-w-md' : '';
@@ -1223,6 +1390,8 @@ function runAnalysis(container) {
   if (!logsEl || !resultsEl) return;
   const logs = logsEl.value;
 
+  logsEl.disabled = true;
+  logsEl.classList.add('opacity-75', 'cursor-not-allowed', 'bg-slate-50');
   resultsEl.innerHTML = '<div class="text-center py-8"><p class="text-slate-600"><i class="fas fa-spinner fa-spin mr-2"></i>Analyzing logs, please wait...</p></div>';
 
   const parseResult = parseLogs(logs);
@@ -1391,7 +1560,11 @@ function clearAll(container) {
   var resultsEl = byId('analysisResults', r);
   var emailOutputEl = document.getElementById('emailOutput');
   var thumbWrap = document.getElementById('logExplainThumbnail');
-  if (logsEl) logsEl.value = '';
+  if (logsEl) {
+    logsEl.disabled = false;
+    logsEl.classList.remove('opacity-75', 'cursor-not-allowed', 'bg-slate-50');
+    logsEl.value = '';
+  }
   if (resultsEl) resultsEl.innerHTML = '<span class="text-sm text-slate-600">Results will appear here...</span>';
   if (emailOutputEl) { emailOutputEl.classList.add('hidden'); emailOutputEl.innerHTML = '<h4 class="text-lg font-semibold text-slate-800 mb-2">Generated Email:</h4><pre id="generatedEmail"></pre>'; }
   if (thumbWrap) thumbWrap.style.display = '';

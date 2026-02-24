@@ -14,7 +14,7 @@ Static multi-tool web app that runs on **GitHub Pages** (client-side only: HTML,
 - **HOME Page** – Welcome and links to all tools
 - **Nested Search Query Builder** – Nested + Alert query modes; Condition vs JSON; convert, copy
 - **Email Generator** – TSV payout data → emails grouped by gateway (alert blocks)
-- **Tokens Extractor** – Extract `payment_token:` and `payout_token:` from text; copy buttons; error alert when input is empty
+- **Tokens Extractor** – Extract `payment_token:`, `payout_token:`, and `payment_method:` (card payment, when value starts with `card_`) from text; copy buttons; error alert when input is empty
 - **Analyze Logs** – Paste JSON logs → distribution chart (Chart.js) and summary
 
 ## Tech stack
