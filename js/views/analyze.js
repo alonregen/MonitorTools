@@ -867,19 +867,40 @@ function escapeRegex(str) {
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-/** Parse search query: "quoted" = exact word/phrase, unquoted = substring match */
-function parseSearchQuery(q) {
+/** Parse one segment: "quoted" = exact word/phrase, unquoted = substring match. Skips "OR" and "AND" (uppercase). */
+function parseSearchSegment(segment) {
   var terms = [];
   var exactPhrases = [];
   var regex = /"([^"]*)"|(\S+)/g;
   var m;
-  while ((m = regex.exec(q)) !== null) {
+  while ((m = regex.exec(segment)) !== null) {
     if (m[1] !== undefined) {
       var p = m[1].trim().toLowerCase();
       if (p) exactPhrases.push(p);
-    } else if (m[2]) terms.push(m[2].toLowerCase());
+    } else if (m[2] && m[2] !== 'OR' && m[2] !== 'AND') terms.push(m[2].toLowerCase());
   }
   return { terms: terms, exactPhrases: exactPhrases };
+}
+
+/** Parse search query: "quoted" = exact match, unquoted = substring. Uppercase OR = logical OR, AND = all in same log. */
+function parseSearchQuery(q) {
+  var orParts = q.split(/\s+OR\s+/);
+  var useOr = orParts.length > 1;
+  var groups = [];
+  orParts.forEach(function (orPart) {
+    var andParts = orPart.split(/\s+AND\s+/);
+    var andSegments = andParts.map(function (p) { return parseSearchSegment(p.trim()); }).filter(function (g) {
+      return g.terms.length > 0 || g.exactPhrases.length > 0;
+    });
+    if (andSegments.length > 0) groups.push({ andSegments: andSegments });
+  });
+  if (groups.length === 0 && orParts.length >= 1) {
+    var fallback = parseSearchSegment(orParts[0].trim());
+    if (fallback.terms.length > 0 || fallback.exactPhrases.length > 0) {
+      groups.push({ andSegments: [fallback] });
+    }
+  }
+  return { groups: groups, useOr: useOr };
 }
 
 /** Check if searchable text matches an exact phrase (word boundary for single word, exact string for multi-word) */
@@ -959,9 +980,12 @@ function setupTimelineSearch() {
   window._timelineFilterFn = function filterTimeline() {
     var q = (input.value || '').trim();
     var parsed = parseSearchQuery(q);
-    var terms = parsed.terms;
-    var exactPhrases = parsed.exactPhrases;
-    var allHighlightTerms = terms.concat(exactPhrases);
+    var groups = parsed.groups;
+    var useOr = parsed.useOr;
+    var allHighlightTerms = [];
+    groups.forEach(function (g) {
+      g.andSegments.forEach(function (s) { allHighlightTerms = allHighlightTerms.concat(s.terms, s.exactPhrases); });
+    });
     var labelsIn = [];
     var labelsOut = [];
     var chips = document.querySelectorAll('.timeline-label-chip');
@@ -976,9 +1000,14 @@ function setupTimelineSearch() {
     items.forEach(function (item) {
       var searchable = (item.getAttribute('data-searchable') || '').toLowerCase();
       var itemLabel = item.getAttribute('data-label') || '';
-      var termsMatch = terms.length === 0 || terms.every(function (t) { return searchable.indexOf(t) !== -1; });
-      var exactMatch = exactPhrases.length === 0 || exactPhrases.every(function (p) { return matchesExactPhrase(searchable, p); });
-      var textMatch = termsMatch && exactMatch;
+      var groupMatches = groups.map(function (g) {
+        return g.andSegments.every(function (seg) {
+          var termsMatch = seg.terms.length === 0 || seg.terms.every(function (t) { return searchable.indexOf(t) !== -1; });
+          var exactMatch = seg.exactPhrases.length === 0 || seg.exactPhrases.every(function (p) { return matchesExactPhrase(searchable, p); });
+          return termsMatch && exactMatch;
+        });
+      });
+      var textMatch = groups.length === 0 || (useOr ? groupMatches.some(Boolean) : groupMatches.every(Boolean));
       var labelMatch = true;
       if (labelsIn.length > 0) labelMatch = labelsIn.indexOf(itemLabel) !== -1;
       if (labelsOut.length > 0 && labelMatch) labelMatch = labelsOut.indexOf(itemLabel) === -1;
@@ -1480,7 +1509,7 @@ function runAnalysis(container) {
   results += '<span class="rounded bg-indigo-100 border border-indigo-200 px-2 py-1 text-slate-800 text-sm font-medium"><i class="fas fa-tachometer-alt mr-1"></i>Total Hits: ' + totalHits + '</span>';
   results += '</div>';
   results += '<div class="timeline-search-bar mb-2">';
-  results += '<input type="text" id="timelineSearchInput" placeholder="Search all logs (time, label, message, level, params). Use \"quotes\" for exact word…" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" autocomplete="off" />';
+  results += '<input type="text" id="timelineSearchInput" placeholder="Search all logs. \"quotes\" = exact word, AND = all in same log, OR = any…" class="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500" autocomplete="off" />';
   results += '<span id="timelineSearchCount" class="hidden text-xs text-slate-500 mt-1"></span>';
   results += '</div>';
   results += '<div id="timelineFavorites" class="flex flex-wrap items-center gap-2 mb-2">';
