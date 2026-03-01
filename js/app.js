@@ -9,7 +9,8 @@
     { path: 'nested', view: views.nestedView, title: 'Monitor Query Builder' },
     { path: 'email', view: views.emailView, title: 'Email Generator' },
     { path: 'tokens', view: views.tokensView, title: 'Tokens Extractor' },
-    { path: 'analyze', view: views.analyzeView, title: 'Analyze Logs' }
+    { path: 'analyze', view: views.analyzeView, title: 'Analyze Logs' },
+    { path: 'statistics', view: views.statisticsView, title: 'Statistics data' }
   ];
 
 const defaultRoute = 'home';

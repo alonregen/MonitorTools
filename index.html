@@ -54,6 +54,7 @@
           <a href="#/email" class="nav-link px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium transition" data-route="email">Email Generator</a>
           <a href="#/tokens" class="nav-link px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium transition" data-route="tokens">Tokens Extractor</a>
           <a href="#/analyze" class="nav-link px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium transition" data-route="analyze">Analyze Logs</a>
+          <a href="#/statistics" class="nav-link px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium transition" data-route="statistics">Statistics data</a>
         </div>
         <div class="flex items-center gap-1">
           <button type="button" id="feedbackBtn" class="flex flex-col items-center gap-0.5 p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition" title="Feedback & Suggestion" aria-label="Send feedback and suggestion">
@@ -71,6 +72,7 @@
         <a href="#/email" class="nav-link block px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100" data-route="email">Email Generator</a>
         <a href="#/tokens" class="nav-link block px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100" data-route="tokens">Tokens Extractor</a>
         <a href="#/analyze" class="nav-link block px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100" data-route="analyze">Analyze Logs</a>
+        <a href="#/statistics" class="nav-link block px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100" data-route="statistics">Statistics data</a>
       </div>
     </div>
   </nav>
@@ -146,6 +148,7 @@
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="js/lib/dom.js"></script>
+  <script src="js/lib/slackAlertParser.js"></script>
   <script src="js/lib/fieldCatalog.js"></script>
   <script src="js/lib/queryCompiler.js"></script>
   <script src="js/lib/aiPlanner.js"></script>
@@ -264,6 +267,7 @@
   <script src="js/views/email.js"></script>
   <script src="js/views/tokens.js"></script>
   <script src="js/views/analyze.js"></script>
+  <script src="js/views/statistics.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

@@ -16,6 +16,7 @@
 #app a[href="#/email"],
 #app a[href="#/tokens"],
 #app a[href="#/analyze"],
+#app a[href="#/statistics"],
 #app a[href="#/maintenance"],
 #app a[href="#/molpay-maintenance"] {
   background-color: #6366f1;
@@ -34,6 +35,7 @@
 #app a[href="#/email"]:hover,
 #app a[href="#/tokens"]:hover,
 #app a[href="#/analyze"]:hover,
+#app a[href="#/statistics"]:hover,
 #app a[href="#/maintenance"]:hover,
 #app a[href="#/molpay-maintenance"]:hover {
   background-color: #4f46e5;
