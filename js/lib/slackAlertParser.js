@@ -28,31 +28,24 @@
    */
   function parseBlockFormat(text) {
     var alerts = [];
-    var blockRegex = /[-:]\s*:label:\s*Operation ID:\s*([a-f0-9\-]+)\s*[\s\S]*?(?=\n[-:]\s*:label:\s*Operation ID:|\n_{10,}|\n\n\n|$)/gi;
-    var block;
-    while ((block = blockRegex.exec(text)) !== null) {
-      var blockText = block[0];
-      var opIdMatch = blockText.match(/Operation ID:\s*([a-f0-9\-]+)/i);
-      var timeMatch = blockText.match(/\*\s*time:\s*([^\n]+)/);
-      var messageMatch = blockText.match(/\*\s*message:\s*([^\n]+)/);
-      var labelMatch = blockText.match(/\*\s*label:\s*([^\n]+)/);
-      var operationId = opIdMatch ? opIdMatch[1].trim() : '';
-      var time = timeMatch ? timeMatch[1].trim() : '';
-      var message = messageMatch ? messageMatch[1].trim() : '';
-      var label = labelMatch ? labelMatch[1].trim() : '';
-      if (operationId || message || label) {
-        alerts.push({
-          operationId: operationId,
-          time: time,
-          message: message,
-          label: label,
-          alertType: extractAlertType(message),
-          severity: undefined,
-          hits: undefined,
-          periodStart: undefined,
-          periodEnd: undefined
-        });
-      }
+    var re = /[-:]\s*:label:\s*Operation ID:\s*([a-fA-F0-9\-]+)\s*\n\s*\*\s*time:\s*([^\n]+)\s*\n\s*\*\s*message:\s*([^\n]+)\s*\n\s*\*\s*label:\s*([^\n]+)/g;
+    var m;
+    while ((m = re.exec(text)) !== null) {
+      var operationId = m[1].trim();
+      var time = m[2].trim();
+      var message = m[3].trim();
+      var label = m[4].trim();
+      alerts.push({
+        operationId: operationId,
+        time: time,
+        message: message,
+        label: label,
+        alertType: extractAlertType(message),
+        severity: undefined,
+        hits: undefined,
+        periodStart: undefined,
+        periodEnd: undefined
+      });
     }
     return alerts;
   }

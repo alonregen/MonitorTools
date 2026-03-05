@@ -21,8 +21,10 @@
         'fixed', 'inset-0', 'z-\[100\]', 'hidden', 'bg-black/50', 'flex', 'items-center', 'justify-center', 'p-4',
         'pointer-events-none', 'pointer-events-auto', 'rounded-xl', 'shadow-xl', 'max-w-md', 'w-full', 'max-h-\[90vh\]',
         'overflow-y-auto', 'border-b', 'border-slate-200', 'text-lg', 'font-semibold', 'text-slate-800',
-        'focus:ring-2', 'focus:ring-primary', 'focus:border-primary', 'bg-emerald-50', 'text-emerald-700',
-        'bg-red-50', 'text-red-700', 'bg-amber-50', 'text-amber-800'
+        'focus:ring-2', 'focus:ring-primary', 'focus:border-primary',         'bg-emerald-50', 'text-emerald-700',
+        'bg-red-50', 'text-red-700', 'bg-amber-50', 'text-amber-800',
+        'bg-slate-100', 'text-slate-700', 'bg-emerald-100', 'text-emerald-700', 'bg-blue-100', 'text-blue-700', 'bg-amber-100', 'text-amber-800',
+        'backdrop-blur-sm', 'shadow-2xl', 'ring-2', 'ring-slate-200/50', 'border-l-4', 'border-l-indigo-500'
       ],
       theme: {
         extend: {
@@ -54,7 +56,15 @@
           <a href="#/email" class="nav-link px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium transition" data-route="email">Email Generator</a>
           <a href="#/tokens" class="nav-link px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium transition" data-route="tokens">Tokens Extractor</a>
           <a href="#/analyze" class="nav-link px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium transition" data-route="analyze">Analyze Logs</a>
-          <a href="#/statistics" class="nav-link px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium transition" data-route="statistics">Statistics data</a>
+          <div class="relative nav-dropdown">
+            <button type="button" id="navStatisticsDropdown" class="nav-dropdown-trigger px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium transition flex items-center gap-1" data-route="statistics" aria-haspopup="true" aria-expanded="false">
+              Statistics <i class="fas fa-chevron-down text-xs"></i>
+            </button>
+            <div id="navStatisticsMenu" class="nav-dropdown-menu hidden absolute top-full left-0 mt-1 py-1 min-w-[200px] bg-white rounded-lg border border-slate-200 shadow-lg z-50">
+              <a href="#/statistics" class="nav-link block px-4 py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium transition text-sm" data-route="statistics">Alerts statistic - Slack</a>
+              <a href="#/statistics-hubspot" class="nav-link block px-4 py-2 text-slate-600 hover:bg-slate-100 hover:text-slate-900 font-medium transition text-sm" data-route="statistics-hubspot">Statistics - Hubspot</a>
+            </div>
+          </div>
         </div>
         <div class="flex items-center gap-1">
           <button type="button" id="feedbackBtn" class="flex flex-col items-center gap-0.5 p-2 rounded-lg text-slate-500 hover:bg-slate-100 hover:text-slate-700 transition" title="Feedback & Suggestion" aria-label="Send feedback and suggestion">
@@ -72,7 +82,11 @@
         <a href="#/email" class="nav-link block px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100" data-route="email">Email Generator</a>
         <a href="#/tokens" class="nav-link block px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100" data-route="tokens">Tokens Extractor</a>
         <a href="#/analyze" class="nav-link block px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100" data-route="analyze">Analyze Logs</a>
-        <a href="#/statistics" class="nav-link block px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100" data-route="statistics">Statistics data</a>
+        <div class="pt-2 mt-2 border-t border-slate-200">
+          <div class="px-4 py-1 text-xs font-semibold text-slate-500 uppercase">Statistics</div>
+          <a href="#/statistics" class="nav-link block px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100" data-route="statistics">Alerts statistic - Slack</a>
+          <a href="#/statistics-hubspot" class="nav-link block px-4 py-2 rounded-lg text-slate-600 hover:bg-slate-100" data-route="statistics-hubspot">Statistics - Hubspot</a>
+        </div>
       </div>
     </div>
   </nav>
@@ -149,6 +163,7 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="js/lib/dom.js"></script>
   <script src="js/lib/slackAlertParser.js"></script>
+  <script src="js/lib/hubspotTicketParser.js"></script>
   <script src="js/lib/fieldCatalog.js"></script>
   <script src="js/lib/queryCompiler.js"></script>
   <script src="js/lib/aiPlanner.js"></script>
@@ -161,6 +176,33 @@
         if (mobile) mobile.classList.toggle('hidden');
         if (icon) { icon.classList.toggle('fa-bars'); icon.classList.toggle('fa-times'); }
       });
+    })();
+    (function() {
+      var trigger = document.getElementById('navStatisticsDropdown');
+      var menu = document.getElementById('navStatisticsMenu');
+      var dropdown = trigger && trigger.closest('.nav-dropdown');
+      function closeMenu() {
+        if (dropdown) dropdown.classList.remove('open');
+        if (trigger) trigger.setAttribute('aria-expanded', 'false');
+      }
+      function openMenu() {
+        if (dropdown) dropdown.classList.add('open');
+        if (trigger) trigger.setAttribute('aria-expanded', 'true');
+      }
+      function toggleMenu() {
+        if (dropdown && dropdown.classList.contains('open')) closeMenu();
+        else openMenu();
+      }
+      if (trigger && menu) {
+        trigger.addEventListener('click', function(e) {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleMenu();
+        });
+        document.addEventListener('click', function() { closeMenu(); });
+        dropdown.addEventListener('click', function(e) { e.stopPropagation(); });
+        window.addEventListener('hashchange', closeMenu);
+      }
     })();
     (function() {
       var COOLDOWN_MINUTES = 10;
@@ -268,6 +310,7 @@
   <script src="js/views/tokens.js"></script>
   <script src="js/views/analyze.js"></script>
   <script src="js/views/statistics.js"></script>
+  <script src="js/views/statisticsHubspot.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

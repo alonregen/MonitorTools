@@ -10,8 +10,11 @@
     { path: 'email', view: views.emailView, title: 'Email Generator' },
     { path: 'tokens', view: views.tokensView, title: 'Tokens Extractor' },
     { path: 'analyze', view: views.analyzeView, title: 'Analyze Logs' },
-    { path: 'statistics', view: views.statisticsView, title: 'Statistics data' }
+    { path: 'statistics', view: views.statisticsView, title: 'Alerts statistic - Slack' },
+    { path: 'statistics-hubspot', view: views.statisticsHubspotView, title: 'Statistics - Hubspot' }
   ];
+
+  var routeParents = { 'statistics-hubspot': 'statistics' };
 
 const defaultRoute = 'home';
 const appTitle = 'Monitor Tools';
@@ -20,6 +23,7 @@ let currentViewName = null;
 
 const appContainer = document.getElementById('app');
 const navLinks = document.querySelectorAll('.nav-link[data-route]');
+const navDropdownTriggers = document.querySelectorAll('.nav-dropdown-trigger[data-route]');
 
 function getHashRoute() {
   var hash = (window.location.hash || '').slice(1);
@@ -29,10 +33,16 @@ function getHashRoute() {
 }
 
 function setActiveNav(route) {
+  var activeRoutes = [route];
+  if (routeParents && routeParents[route]) activeRoutes.push(routeParents[route]);
   navLinks.forEach(function (link) {
-    const isActive = link.getAttribute('data-route') === route;
+    const isActive = activeRoutes.indexOf(link.getAttribute('data-route')) !== -1;
     link.classList.toggle('active', isActive);
     link.setAttribute('aria-current', isActive ? 'page' : null);
+  });
+  navDropdownTriggers.forEach(function (trigger) {
+    const isActive = activeRoutes.indexOf(trigger.getAttribute('data-route')) !== -1;
+    trigger.classList.toggle('active', isActive);
   });
 }
 

@@ -11,7 +11,8 @@ function root(container) {
 
 function byId(id, container) {
   var r = root(container);
-  return r.getElementById ? r.getElementById(id) : r.querySelector('[id="' + id + '"]');
+  var el = (r && r.querySelector) ? r.querySelector('[id="' + id + '"]') : null;
+  return el || (typeof document !== 'undefined' && document.getElementById ? document.getElementById(id) : null);
 }
 
 function escapeAttr(s) {
@@ -26,41 +27,42 @@ function escapeAttr(s) {
 
 var DEMO_SLACK_TEXT = [
   '________________________________________________________________________________________',
-  '- :label: Operation ID: ff01316b-76b8-4930-af7a-615ee3bd0a81',
+  '- :label: Operation ID: a1b2c3d4-e5f6-7890-abcd-ef1234567890',
   '   * time: 2026-02-11T08:07:10.316Z',
-  '   * message:   NOC_SHVA_ALERT - Daily POS record with uid=26021013501408826147534 for operation = create domestic payment failed - Payment was not found',
-  '   * label:   shva_file_service',
+  '   * message:   NOC_DEMO_ALERT - Daily POS record with uid=12345678901234567890 for operation = create domestic payment failed - Payment was not found',
+  '   * label:   demo_file_service',
   '   * params:   [ [] ]',
   '________________________________________________________________________________________',
-  '- :label: Operation ID: 33d9b276-c11b-4b18-84e5-724c29f2c86b',
+  '- :label: Operation ID: b2c3d4e5-f6a7-8901-bcde-f12345678901',
   '   * time: 2026-02-11T08:07:10.328Z',
-  '   * message:   NOC_SHVA_ALERT - Daily POS record with uid=26021014501908826140633 for operation = create domestic payment failed - Payment was not found',
-  '   * label:   shva_file_service',
+  '   * message:   NOC_DEMO_ALERT - Daily POS record with uid=12345678901234567891 for operation = create domestic payment failed - Payment was not found',
+  '   * label:   demo_file_service',
   '   * params:   [ [] ]',
   '________________________________________________________________________________________',
-  '- :label: Operation ID: 2ef362aa-92b2-4ecf-a2a7-947bc6bab2dc',
+  '- :label: Operation ID: c3d4e5f6-a7b8-9012-cdef-123456789012',
   '   * time: 2026-02-11T08:07:11.358Z',
-  '   * message:   NOC_SHVA_ALERT - Daily POS record with uid=26021015501408826143698 for operation = create domestic payment failed - Payment was not found',
-  '   * label:   shva_file_service',
+  '   * message:   NOC_DEMO_ALERT - Daily POS record with uid=12345678901234567892 for operation = create domestic payment failed - Payment was not found',
+  '   * label:   demo_file_service',
   '   * params:   [ [] ]',
   '________________________________________________________________________________________',
-  'NOC_SHVA_ALERT - shva_collect_service',
-  ':rotating_light: Alert: NOC_SHVA_ALERT - shva_collect_service entered, Please investigate the issue:',
+  'NOC_DEMO_ALERT - demo_collect_service',
+  ':rotating_light: Alert: NOC_DEMO_ALERT - demo_collect_service entered, Please investigate the issue:',
   '  - Severity: 1',
   ':clock3: Period Start: 2026-02-11T11:03:55.687Z',
   ':clock3: Period End: 2026-02-11T11:04:55.687Z',
   ':exclamation: Number of Hits: 1',
   '________________________________________________________________________________________',
-  '- :label: Operation ID: 9c7bb287-826d-46d6-b52d-edfec11f938f',
+  '- :label: Operation ID: d4e5f6a7-b8c9-0123-def0-234567890123',
   '   * time: 2026-02-11T11:04:00.036Z',
-  '   * message:   RapydProxyProvider/createPayment - NOC_SHVA_ALERT Shva: Invalid Advice - failed processing Advice from Shva',
-  '   * label:   shva_collect_service',
+  '   * message:   DemoPaymentProvider/createPayment - NOC_DEMO_ALERT: Invalid Advice - failed processing Advice',
+  '   * label:   demo_collect_service',
   '   * params:   [ [ { response_code: \'ERROR_CREATE_PAYMENT\' } ] ]'
 ].join('\n');
 
 var chartInstances = [];
 var alertsState = [];
 var filteredAlerts = [];
+var statsClickCleanup = null;
 
 function filterAlerts(alerts, searchTerm, dateFrom, dateTo) {
   var term = (searchTerm || '').trim().toLowerCase();
@@ -214,9 +216,9 @@ function updateDashboard(container, alerts) {
   var kpiTypes = r.querySelector('#statsKpiTypes');
   var kpiServices = r.querySelector('#statsKpiServices');
   var kpiRange = r.querySelector('#statsKpiRange');
-  var tableBody = r.querySelector('#statsTableBody');
-  var dashboardEl = r.querySelector('#statsDashboard');
-  var emptyEl = r.querySelector('#statsEmpty');
+  var tableBody = r.querySelector('#statsTableBody') || document.getElementById('statsTableBody');
+  var dashboardEl = r.querySelector('#statsDashboard') || document.getElementById('statsDashboard');
+  var emptyEl = r.querySelector('#statsEmpty') || document.getElementById('statsEmpty');
 
   if (alerts.length === 0) {
     if (dashboardEl) dashboardEl.classList.add('hidden');
@@ -283,9 +285,59 @@ function updateDashboard(container, alerts) {
 function runAnalyze(container) {
   var r = root(container);
   var textarea = byId('statsInput', r);
-  var result = parser ? parser.parseSlackAlerts(textarea ? textarea.value : '') : { alerts: [], errors: [] };
+  var inputText = textarea ? String(textarea.value || '').trim() : '';
+  if (!inputText) {
+    alertsState = [];
+    runDashboardFromAlerts(container);
+    return;
+  }
+  var result;
+  var p = (window.App && window.App.slackAlertParser) || parser;
+  if (p && typeof p.parseSlackAlerts === 'function') {
+    result = p.parseSlackAlerts(inputText);
+  }
+  if (!result || !result.alerts || result.alerts.length === 0) {
+    result = parseSlackAlertsFallback(inputText);
+  }
   alertsState = result.alerts || [];
+  if (result.errors && result.errors.length > 0) {
+    console.warn('Slack parse warnings:', result.errors);
+  }
   runDashboardFromAlerts(container);
+}
+
+function parseSlackAlertsFallback(text) {
+  var alerts = [];
+  var seen = {};
+  var blockRe = /[-:]\s*:label:\s*Operation ID:\s*([a-fA-F0-9\-]+)\s*\n\s*\*\s*time:\s*([^\n]+)\s*\n\s*\*\s*message:\s*([^\n]+)\s*\n\s*\*\s*label:\s*([^\n]+)/g;
+  var m;
+  while ((m = blockRe.exec(text)) !== null) {
+    var key = m[1] + '|' + m[2];
+    if (seen[key]) continue;
+    seen[key] = true;
+    var msg = m[3].trim();
+    var alertType = (msg.match(/^([A-Z][A-Z0-9_\-]+)/) || [])[1] || '';
+    alerts.push({ operationId: m[1].trim(), time: m[2].trim(), message: msg, label: m[4].trim(), alertType: alertType });
+  }
+  var blocks = text.split(/_{10,}/);
+  for (var i = 0; i < blocks.length; i++) {
+    var block = blocks[i];
+    if (!block.match(/Period Start:/i) && !block.match(/Number of Hits:/i)) continue;
+    var nameMatch = block.match(/([A-Z][A-Z0-9_\-]+)\s*-\s*([a-z][a-z0-9_]+)/);
+    if (!nameMatch) continue;
+    var periodMatch = block.match(/Period Start:\s*([^\s\n]+)/i);
+    var wkey = (periodMatch ? periodMatch[1] : '') + '|' + nameMatch[2] + '|' + nameMatch[1];
+    if (seen[wkey]) continue;
+    seen[wkey] = true;
+    alerts.push({
+      operationId: '',
+      time: periodMatch ? periodMatch[1].trim() : '',
+      message: nameMatch[0].trim(),
+      label: nameMatch[2],
+      alertType: nameMatch[1]
+    });
+  }
+  return { alerts: alerts, errors: [] };
 }
 
 function runDashboardFromAlerts(container) {
@@ -460,6 +512,24 @@ function mount(container, context) {
     e.target.value = '';
   }
 
+  function handleContainerClick(e) {
+    var t = e.target;
+    if (!t) return;
+    var btn = t.closest ? t.closest('#statsAnalyzeBtn, #statsDemoBtn, #statsRefreshBtn, #statsClearBtn, #statsSearchBtn, #statsCsvBtn') : null;
+    if (!btn) return;
+    if (btn.id === 'statsAnalyzeBtn') { doAnalyze(); return; }
+    if (btn.id === 'statsDemoBtn') { doDemo(); return; }
+    if (btn.id === 'statsRefreshBtn') { doRefresh(); return; }
+    if (btn.id === 'statsClearBtn') { doClear(); return; }
+    if (btn.id === 'statsSearchBtn') { doSearch(); return; }
+    if (btn.id === 'statsCsvBtn') { doLoadCsv(); return; }
+  }
+
+  if (r) {
+    r.addEventListener('click', handleContainerClick);
+    statsClickCleanup = function () { r.removeEventListener('click', handleContainerClick); };
+  }
+
   if (refreshBtn) refreshBtn.addEventListener('click', doRefresh);
   if (analyzeBtn) analyzeBtn.addEventListener('click', doAnalyze);
   if (demoBtn) demoBtn.addEventListener('click', doDemo);
@@ -478,6 +548,10 @@ function mount(container, context) {
 }
 
 function unmount() {
+  if (statsClickCleanup && typeof statsClickCleanup === 'function') {
+    statsClickCleanup();
+    statsClickCleanup = null;
+  }
   destroyCharts();
   alertsState = [];
   filteredAlerts = [];
@@ -485,13 +559,11 @@ function unmount() {
 
 var statisticsView = {
   route: 'statistics',
-  navLabel: 'Statistics data',
+  navLabel: 'Alerts statistic - Slack',
   render: render,
   mount: mount,
   unmount: unmount
 };
 
-(function () {
-  window.MonitorToolsViews = window.MonitorToolsViews || {};
-  window.MonitorToolsViews.statisticsView = statisticsView;
-})();
+window.MonitorToolsViews = window.MonitorToolsViews || {};
+window.MonitorToolsViews.statisticsView = statisticsView;

@@ -39,7 +39,7 @@ var homeView = {
             <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform duration-300">
               <i class="fas fa-chart-bar text-xl"></i>
             </div>
-            <span class="font-semibold text-slate-800 group-hover:text-purple-700 transition-colors">Statistics data</span>
+            <span class="font-semibold text-slate-800 group-hover:text-purple-700 transition-colors">Statistics</span>
           </a>
         </div>
       </div>
