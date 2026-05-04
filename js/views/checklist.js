@@ -33,6 +33,9 @@
   var FILE_BACKUP_VERSION = 1;
   /** Set before render via prepareRoute / mount so `#/shift-history` can show history without full checklist UI. */
   var routePathForLayout = 'checklist';
+  /** Server session for optional Netlify `/api/shift-history-section-gate` (secrets stay on server). */
+  var shiftHistorySectionGateState = { loaded: true, gateEnabled: false, authenticated: true };
+  var shiftHistorySectionGateLoginError = '';
 
   function isHistoryOnlyLayout() {
     return routePathForLayout === 'shift-history';
@@ -769,6 +772,40 @@
     return '';
   }
 
+  function shiftHistorySectionGateApiBase() {
+    return '/api/shift-history-section-gate';
+  }
+
+  function fetchShiftHistorySectionGateSession() {
+    return fetch(shiftHistorySectionGateApiBase(), { method: 'GET', credentials: 'same-origin' })
+      .then(function (res) {
+        if (!res.ok) throw new Error('gate session');
+        return res.json();
+      })
+      .then(function (data) {
+        return {
+          gateEnabled: !!(data && data.gateEnabled),
+          authenticated: !!(data && data.authenticated),
+        };
+      })
+      .catch(function () {
+        return { gateEnabled: false, authenticated: true };
+      });
+  }
+
+  function loginShiftHistorySectionGate(username, password) {
+    return fetch(shiftHistorySectionGateApiBase(), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: username, password: password }),
+    });
+  }
+
+  function logoutShiftHistorySectionGate() {
+    return fetch(shiftHistorySectionGateApiBase(), { method: 'DELETE', credentials: 'same-origin' });
+  }
+
   /** Netlify Database sync: set via build inject (ENABLE_SHIFT_HISTORY_NETLIFY_DB) or __MONITOR_TOOLS_CONFIG__. */
   function shiftHistoryNetlifyDbEnabled() {
     if (window.MONITOR_TOOLS_SHIFT_HISTORY_NETLIFY_DB === true) return true;
@@ -807,8 +844,17 @@
     return fetch(shiftHistoryApiPath(), { method: 'GET', credentials: 'same-origin' })
       .then(function (res) {
         if (res.status === 401) {
-          showChecklistToast('error', 'Could not load cloud shift history: sign in to the site (HTTP Basic Auth), then try again.');
-          return null;
+          return fetchShiftHistorySectionGateSession().then(function (g) {
+            if (g.gateEnabled) {
+              shiftHistorySectionGateState = { loaded: true, gateEnabled: true, authenticated: false };
+              shiftHistorySectionGateLoginError = '';
+              if (rootEl && isHistoryOnlyLayout()) rootEl.innerHTML = render();
+              showChecklistToast('error', 'Shift history session expired—sign in again.');
+            } else {
+              showChecklistToast('error', 'Could not load cloud shift history: sign in to the site (HTTP Basic Auth), then try again.');
+            }
+            return null;
+          });
         }
         if (!res.ok) throw new Error('GET shift history failed');
         return res.json();
@@ -841,6 +887,18 @@
       body: JSON.stringify(snap)
     })
       .then(function (res) {
+        if (res.status === 401) {
+          return fetchShiftHistorySectionGateSession().then(function (g) {
+            if (g.gateEnabled) {
+              shiftHistorySectionGateState = { loaded: true, gateEnabled: true, authenticated: false };
+              shiftHistorySectionGateLoginError = '';
+              if (rootEl && isHistoryOnlyLayout()) rootEl.innerHTML = render();
+              showChecklistToast('error', 'Shift history session expired—sign in again.');
+              return;
+            }
+            throw new Error('POST shift history failed');
+          });
+        }
         if (!res.ok) throw new Error('POST shift history failed');
       })
       .catch(function () {
@@ -1619,18 +1677,59 @@
     oldSummary.outerHTML = renderSummary(getProgressSnapshot());
   }
 
+  function renderShiftHistorySectionGateLoginForm() {
+    return ''
+      + '<div class="shift-history-gate-login mt-2">'
+      + '  <p class="text-sm font-semibold text-slate-900 mb-3">Sign in to view shift history</p>'
+      + '  <label class="block text-xs font-semibold text-slate-600 mb-1" for="shiftHistoryGateUser">Username</label>'
+      + '  <input id="shiftHistoryGateUser" type="text" autocomplete="username" class="w-full max-w-sm px-3 py-2 text-sm border border-slate-200 rounded-xl bg-white mb-3">'
+      + '  <label class="block text-xs font-semibold text-slate-600 mb-1" for="shiftHistoryGatePass">Password</label>'
+      + '  <input id="shiftHistoryGatePass" type="password" autocomplete="current-password" class="w-full max-w-sm px-3 py-2 text-sm border border-slate-200 rounded-xl bg-white mb-3">'
+      + '  <button type="button" data-action="shift-history-gate-login" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white hover:bg-primary-dark transition font-medium">Sign in</button>'
+      + (shiftHistorySectionGateLoginError ? '<p class="text-xs text-red-600 mt-2">' + escapeHtml(shiftHistorySectionGateLoginError) + '</p>' : '')
+      + '</div>';
+  }
+
   /** Dedicated `#/shift-history` route: password + list only (obfuscation, not server auth). */
   function renderHistoryOnlyPage() {
+    if (!shiftHistorySectionGateState.loaded) {
+      return ''
+        + '<div class="max-w-3xl mx-auto">'
+        + '  <div class="mb-6">'
+        + '    <h1 class="mt-page-title">Shift history</h1>'
+        + '    <p class="mt-page-desc mt-2 text-slate-600">Checking access…</p>'
+        + '  </div>'
+        + '</div>';
+    }
+    if (shiftHistorySectionGateState.gateEnabled && !shiftHistorySectionGateState.authenticated) {
+      return ''
+        + '<div class="max-w-3xl mx-auto">'
+        + '  <div class="mb-6">'
+        + '    <h1 class="mt-page-title">Shift history</h1>'
+        + '    <p class="mt-page-desc mt-2 text-slate-600">This page is restricted. Use the credentials configured for your deployment.</p>'
+        + '  </div>'
+        + '  <div class="rounded-3xl border border-slate-200 p-4 sm:p-5 bg-white">'
+        + renderShiftHistorySectionGateLoginForm()
+        + '    <p class="mt-4 pt-4 border-t border-slate-200/80 text-sm"><a href="#/checklist" class="text-primary font-semibold hover:text-primary-dark">← Full shift checklist</a></p>'
+        + '  </div>'
+        + '</div>';
+    }
     var historyDesc = shiftHistoryEncryptionInUse()
       ? 'Unlock with your history password to view or export past saved shifts. Same encrypted storage as the full checklist.'
       : 'View or export past saved shifts stored in this browser'
         + (shiftHistoryNetlifyDbEnabled() ? ' (and merged with cloud history when sync is enabled).' : '.');
     var backupBlock = shiftHistoryEncryptionInUse() ? renderEncryptedBackupTools() : '';
+    var signOutBtn = (shiftHistorySectionGateState.gateEnabled && shiftHistorySectionGateState.authenticated)
+      ? '<button type="button" data-action="shift-history-gate-logout" class="text-xs text-slate-500 hover:text-slate-700 font-semibold shrink-0">Sign out</button>'
+      : '';
     return ''
       + '<div class="max-w-3xl mx-auto">'
-      + '  <div class="mb-6">'
-      + '    <h1 class="mt-page-title">Shift history</h1>'
-      + '    <p class="mt-page-desc mt-2">' + historyDesc + '</p>'
+      + '  <div class="mb-6 flex flex-wrap items-start justify-between gap-3">'
+      + '    <div class="min-w-0">'
+      + '      <h1 class="mt-page-title">Shift history</h1>'
+      + '      <p class="mt-page-desc mt-2">' + historyDesc + '</p>'
+      + '    </div>'
+      + signOutBtn
       + '  </div>'
       + '  <div class="rounded-3xl border border-slate-200 p-4 sm:p-5 bg-white">'
       + renderHistoryPanel()
@@ -1763,6 +1862,12 @@
     if (deps && deps.routePath) {
       routePathForLayout = deps.routePath;
     }
+    if (isHistoryOnlyLayout()) {
+      shiftHistorySectionGateState = { loaded: false, gateEnabled: false, authenticated: false };
+      shiftHistorySectionGateLoginError = '';
+    } else {
+      shiftHistorySectionGateState = { loaded: true, gateEnabled: false, authenticated: true };
+    }
     state = loadState();
     historyPlainShadow = [];
     historyHydrationPromise = Promise.resolve();
@@ -1801,16 +1906,32 @@
     }
     rootEl.innerHTML = render();
 
-    if (!shiftHistoryEncryptionInUse() && shiftHistoryNetlifyDbEnabled()) {
-      maybeSyncShiftHistoryFromNetlifyDb();
-    }
-
-    if (isHistoryOnlyLayout() && !historyUnlocked && shiftHistoryEncryptionInUse()) {
-      requestAnimationFrame(function () {
-        if (!rootEl) return;
-        var pwd = rootEl.querySelector('#shiftHistoryPasswordInput');
-        if (pwd) pwd.focus();
-      });
+    if (isHistoryOnlyLayout()) {
+      fetchShiftHistorySectionGateSession()
+        .then(function (g) {
+          shiftHistorySectionGateState = {
+            loaded: true,
+            gateEnabled: g.gateEnabled,
+            authenticated: g.authenticated,
+          };
+          shiftHistorySectionGateLoginError = '';
+          if (!rootEl) return;
+          rootEl.innerHTML = render();
+          if (shiftHistorySectionGateState.authenticated && !shiftHistoryEncryptionInUse() && shiftHistoryNetlifyDbEnabled()) {
+            maybeSyncShiftHistoryFromNetlifyDb();
+          }
+          if (!historyUnlocked && shiftHistoryEncryptionInUse()) {
+            requestAnimationFrame(function () {
+              if (!rootEl) return;
+              var pwd = rootEl.querySelector('#shiftHistoryPasswordInput');
+              if (pwd) pwd.focus();
+            });
+          }
+        });
+    } else {
+      if (!shiftHistoryEncryptionInUse() && shiftHistoryNetlifyDbEnabled()) {
+        maybeSyncShiftHistoryFromNetlifyDb();
+      }
     }
 
     onInputHandler = function (event) {
@@ -1856,6 +1977,54 @@
         emailSendState = { status: 'idle', message: '' };
         persistState();
         rootEl.innerHTML = render();
+        return;
+      }
+
+      var gateLoginBtn = target.closest('[data-action="shift-history-gate-login"]');
+      if (gateLoginBtn) {
+        var uIn = rootEl.querySelector('#shiftHistoryGateUser');
+        var pIn = rootEl.querySelector('#shiftHistoryGatePass');
+        var uVal = uIn ? String(uIn.value || '').trim() : '';
+        var pVal = pIn ? String(pIn.value || '') : '';
+        if (!uVal || !pVal) {
+          shiftHistorySectionGateLoginError = 'Enter username and password.';
+          rootEl.innerHTML = render();
+          return;
+        }
+        shiftHistorySectionGateLoginError = '';
+        loginShiftHistorySectionGate(uVal, pVal)
+          .then(function (res) {
+            if (res.ok) {
+              shiftHistorySectionGateState = { loaded: true, gateEnabled: true, authenticated: true };
+              shiftHistorySectionGateLoginError = '';
+              rootEl.innerHTML = render();
+              if (!shiftHistoryEncryptionInUse() && shiftHistoryNetlifyDbEnabled()) {
+                maybeSyncShiftHistoryFromNetlifyDb();
+              }
+            } else {
+              shiftHistorySectionGateLoginError = 'Invalid credentials.';
+              rootEl.innerHTML = render();
+            }
+          })
+          .catch(function () {
+            shiftHistorySectionGateLoginError = 'Could not reach server.';
+            rootEl.innerHTML = render();
+          });
+        return;
+      }
+
+      var gateLogoutBtn = target.closest('[data-action="shift-history-gate-logout"]');
+      if (gateLogoutBtn) {
+        logoutShiftHistorySectionGate()
+          .then(function () {
+            shiftHistorySectionGateState = { loaded: true, gateEnabled: true, authenticated: false };
+            shiftHistorySectionGateLoginError = '';
+            rootEl.innerHTML = render();
+          })
+          .catch(function () {
+            shiftHistorySectionGateState = { loaded: true, gateEnabled: true, authenticated: false };
+            rootEl.innerHTML = render();
+          });
         return;
       }
 
@@ -2054,6 +2223,8 @@
     rootEl = null;
     historyPlainShadow = [];
     routePathForLayout = 'checklist';
+    shiftHistorySectionGateState = { loaded: true, gateEnabled: false, authenticated: true };
+    shiftHistorySectionGateLoginError = '';
   }
 
   var checklistView = {

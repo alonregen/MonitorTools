@@ -139,6 +139,17 @@ If **either** Basic Auth variable is set but not the other, the site responds wi
 
 Paths under **`/.well-known/`** are excluded from the Edge Function in `netlify.toml` so challenges such as ACME can still be served.
 
+### Shift history section login (Netlify Functions secrets)
+
+Because the app uses **hash routes**, the server cannot gate only `#/shift-history` at the CDN. Optional **section** protection uses a Netlify Function and **HttpOnly cookies** (credentials are never embedded in static JS):
+
+- **`SHIFT_HISTORY_SECTION_USER`** and **`SHIFT_HISTORY_SECTION_PASSWORD`** — when **both** are set (Functions env), the **`/api/shift-history-section-gate`** endpoint and **`/api/shift-history`** require a valid signed session cookie. If only one of user/password is set, the gate responds with **503** (misconfiguration), same pattern as site-wide Basic Auth.
+- **`SHIFT_HISTORY_SECTION_COOKIE_SECRET`** — long random secret used to HMAC-sign the session cookie; **required** whenever user and password are set. If it is missing, the gate returns **503**.
+
+The **Shift history** page calls `GET /api/shift-history-section-gate` to learn whether the gate is enabled; if it is, the user signs in on that page until `POST` succeeds and the browser stores the cookie. **Sign out** clears the cookie. Site-wide **`BASIC_AUTH_*`** can still apply first (browser prompts before any asset loads); the section cookie is an additional check for shift history and the shift-history API.
+
+**Limitation:** Plain shift snapshots in **browser `localStorage`** are still readable on the same origin without the section cookie (e.g. via DevTools). This feature protects normal use and **cloud** history at `/api/shift-history`; it is not DRM against a determined same-origin attacker.
+
 ### Shift history password vs Basic Auth
 
 - **Basic Auth:** Stops anonymous visitors from loading HTML, JS, or assets. Credentials never belong in git; set them only in Netlify.

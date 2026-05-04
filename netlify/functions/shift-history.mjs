@@ -1,5 +1,9 @@
 import { getConnectionString } from '@netlify/database';
 import postgres from 'postgres';
+import {
+  getShiftHistorySectionGateStatus,
+  verifyShiftHistorySectionSessionCookie,
+} from './_lib/shiftHistorySectionGate.mjs';
 
 /** Max JSON body size for POST (bytes). */
 const MAX_BODY_BYTES = 512 * 1024;
@@ -43,6 +47,20 @@ async function insertSnapshot(sql, body) {
  * @param {Request} request
  */
 export default async function shiftHistoryHandler(request) {
+  var gateStatus = getShiftHistorySectionGateStatus();
+  if (gateStatus === 'misconfigured_userpass' || gateStatus === 'misconfigured_secret') {
+    return new Response(JSON.stringify({ error: 'Shift history section gate misconfigured' }), {
+      status: 503,
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    });
+  }
+  if (gateStatus === 'on' && !verifyShiftHistorySectionSessionCookie(request.headers.get('cookie'))) {
+    return new Response(JSON.stringify({ error: 'Shift history section login required' }), {
+      status: 401,
+      headers: { 'Content-Type': 'application/json; charset=utf-8' },
+    });
+  }
+
   var dbUrl = process.env.NETLIFY_DB_URL || '';
   if (!dbUrl) {
     try {

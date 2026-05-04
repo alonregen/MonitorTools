@@ -8,6 +8,9 @@
 #   SHIFT_HISTORY_PASSWORD        — only used if INJECT_SHIFT_HISTORY_PASSWORD_IN_PAGES is true (build)
 #   BASIC_AUTH_USER               — optional; site-wide gate (Functions scope — see README)
 #   BASIC_AUTH_PASSWORD           — optional; site-wide gate (Functions scope)
+#   SHIFT_HISTORY_SECTION_USER    — optional; with SECTION_PASSWORD + COOKIE_SECRET gates /api/shift-history and #/shift-history login (Functions scope)
+#   SHIFT_HISTORY_SECTION_PASSWORD — optional (see README)
+#   SHIFT_HISTORY_SECTION_COOKIE_SECRET — required when user+password set; signs HttpOnly session cookie
 #   ENABLE_SHIFT_HISTORY_NETLIFY_DB — optional build env; "true"/"1" enables client sync to Netlify Database via /api/shift-history (requires linked Netlify Database).
 # See scripts/inject-local-env.mjs.
 
