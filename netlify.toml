@@ -2,12 +2,20 @@
 # Build matches .github/workflows/deploy-pages.yml (inject before publish).
 #
 # Site configuration → Environment variables (not read from GitHub; set here separately):
-#   WEB3FORMS_ACCESS_KEY          — optional; checklist Web3Forms
-#   CHECKLIST_OWNER_EMAIL         — optional
+#   WEB3FORMS_ACCESS_KEY          — optional; checklist Web3Forms (build)
+#   CHECKLIST_OWNER_EMAIL         — optional (build)
 #   INJECT_SHIFT_HISTORY_PASSWORD_IN_PAGES — optional; "true" to embed (discouraged)
-#   SHIFT_HISTORY_PASSWORD        — only used if INJECT_SHIFT_HISTORY_PASSWORD_IN_PAGES is true
+#   SHIFT_HISTORY_PASSWORD        — only used if INJECT_SHIFT_HISTORY_PASSWORD_IN_PAGES is true (build)
+#   BASIC_AUTH_USER               — optional; site-wide gate (Functions scope — see README)
+#   BASIC_AUTH_PASSWORD           — optional; site-wide gate (Functions scope)
 # See scripts/inject-local-env.mjs.
 
 [build]
   command = "node scripts/inject-local-env.mjs --ci"
   publish = "."
+
+# Whole-site HTTP Basic Auth via netlify/edge-functions/site-gate.js (hash routes cannot be gated alone).
+[[edge_functions]]
+  path = "/*"
+  excludedPath = "/.well-known/*"
+  function = "site-gate"

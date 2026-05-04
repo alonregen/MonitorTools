@@ -120,6 +120,32 @@ The live site URL: `https://<username>.github.io/<repo>/` (use a trailing slash 
 
 **Simpler option (no Actions):** **Source → Deploy from a branch** (`main`, `/ (root)`). The app works, but Web3Forms will not be configured unless you commit a key (not recommended) or only use email locally via `.env.local`.
 
+## Deploy on Netlify (optional)
+
+You can host the same static tree on [Netlify](https://www.netlify.com/) using [`netlify.toml`](netlify.toml): build command `node scripts/inject-local-env.mjs --ci`, publish directory `.` (same as GitHub Actions inject).
+
+### Site-wide username/password (Shift history and entire app)
+
+The app uses **hash routes** (`#/shift-history`, `#/home`, …). The server only sees paths like `/` and `/index.html`, so Netlify cannot apply HTTP auth to “Shift history only”; the practical option is to protect the **whole site**.
+
+An Edge Function at [`netlify/edge-functions/site-gate.js`](netlify/edge-functions/site-gate.js) enforces **HTTP Basic Auth** when both of these are set in the Netlify UI:
+
+- **`BASIC_AUTH_USER`**
+- **`BASIC_AUTH_PASSWORD`**
+
+**Important:** In **Site configuration → Environment variables**, these must be available to **Functions** (Edge Functions read them at request time via `Netlify.env`). Build-time variables alone are not enough for the gate. The build still uses the same keys as GitHub Actions (`WEB3FORMS_ACCESS_KEY`, optional `CHECKLIST_OWNER_EMAIL`, optional inject flags) from Build env as documented in `netlify.toml`.
+
+If **either** Basic Auth variable is set but not the other, the site responds with **503** (misconfiguration). If **both** are unset or empty, the gate is **off** (useful for previews or local `netlify dev` without secrets).
+
+Paths under **`/.well-known/`** are excluded from the Edge Function in `netlify.toml` so challenges such as ACME can still be served.
+
+### Shift history password vs Basic Auth
+
+- **Basic Auth:** Stops anonymous visitors from loading HTML, JS, or assets. Credentials never belong in git; set them only in Netlify.
+- **`SHIFT_HISTORY_PASSWORD`:** Still encrypts checklist history in the browser. By default, CI does **not** embed it in `js/config.local.js` (users type it after opening the site). If the site is only for your team behind Basic Auth, you *may* set `INJECT_SHIFT_HISTORY_PASSWORD_IN_PAGES=true` and `SHIFT_HISTORY_PASSWORD` in **build** env so the inject script embeds it—anyone who knows the **HTTP Basic** credentials can still extract that value from downloaded JS, so treat that as a convenience tradeoff, not a second layer against teammates.
+
+Test locally with the [Netlify CLI](https://docs.netlify.com/api-and-cli-guides/cli-guides/get-started-with-cli/): `netlify dev` (set Basic Auth env in the Netlify site or `.env` as documented for CLI-linked sites).
+
 ## Footer
 
 The footer includes:
@@ -149,7 +175,7 @@ The checklist history panel supports a browser-side password gate for convenienc
 Important:
 - This is **not** true security on a static site. If you ever **do** put the password into shipped JS (local `config.local.js` or the optional CI embed flag), it can be read from the network or source like any other static asset.
 - **GitHub Actions deploy (default):** the workflow does **not** write `SHIFT_HISTORY_PASSWORD` into `js/config.local.js`, so that secret is **not** exposed on the public site—users unlock history by **typing** the password in the UI.
-- For real access control, use a backend authentication flow.
+- For real access control, use a backend authentication flow, or a host-level gate such as **HTTP Basic Auth on Netlify** (see [Deploy on Netlify](#deploy-on-netlify-optional)).
 
 ### Encrypted file backup (safe to commit to git)
 
