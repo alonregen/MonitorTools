@@ -1,0 +1,13 @@
+# Netlify → Import from Git → GitHub → this repo → production branch: main.
+# Build matches .github/workflows/deploy-pages.yml (inject before publish).
+#
+# Site configuration → Environment variables (not read from GitHub; set here separately):
+#   WEB3FORMS_ACCESS_KEY          — optional; checklist Web3Forms
+#   CHECKLIST_OWNER_EMAIL         — optional
+#   INJECT_SHIFT_HISTORY_PASSWORD_IN_PAGES — optional; "true" to embed (discouraged)
+#   SHIFT_HISTORY_PASSWORD        — only used if INJECT_SHIFT_HISTORY_PASSWORD_IN_PAGES is true
+# See scripts/inject-local-env.mjs.
+
+[build]
+  command = "node scripts/inject-local-env.mjs --ci"
+  publish = "."

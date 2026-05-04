@@ -18,21 +18,26 @@ var EXPLAINED_IMAGE_PATH = 'img/explained-opensearch-inspect.png';
 
 function render() {
   return `
-    <div class="relative">
-    <button type="button" id="analyzeRefreshBtn" class="absolute top-0 right-0 p-2.5 rounded-lg text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 transition font-medium" title="Reset all"><i class="fas fa-sync-alt text-base"></i></button>
-    <h2 class="text-xl font-bold text-slate-800 mb-2 pr-10">Log Analysis</h2>
-    <div class="flex flex-wrap items-center gap-2 mb-2">
-      <p class="text-slate-600 text-sm m-0">Paste your logs below:</p>
-      <button type="button" id="logExplainBtn" class="inline-flex items-center justify-center w-7 h-7 rounded-full border border-slate-300 bg-slate-50 hover:bg-slate-100 text-slate-600 hover:text-indigo-600 transition" title="How to get logs from OpenSearch"><i class="fas fa-info-circle text-sm"></i></button>
+    <div class="max-w-5xl mx-auto">
+    <div class="mb-6 pr-10">
+      <p class="mt-page-eyebrow">Insights</p>
+      <h1 class="mt-page-title mb-2">Log analysis</h1>
+      <p class="mt-page-desc">Paste OpenSearch-style JSON hits to summarize labels, timelines, and optional email text.</p>
+    </div>
+    <div class="relative rounded-xl border border-slate-200/90 bg-slate-50/40 p-4 sm:p-6">
+    <button type="button" id="analyzeRefreshBtn" class="absolute top-3 right-3 p-2.5 rounded-lg text-primary hover:bg-primary/10 transition font-medium" title="Reset all"><i class="fas fa-sync-alt text-base"></i></button>
+    <div class="flex flex-wrap items-center gap-2 mb-3 pr-8">
+      <p class="text-slate-600 text-sm m-0 font-medium">Paste logs</p>
+      <button type="button" id="logExplainBtn" class="inline-flex items-center justify-center w-7 h-7 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 hover:text-primary transition" title="How to get logs from OpenSearch"><i class="fas fa-info-circle text-sm"></i></button>
       <div id="logExplainThumbnail" class="flex items-center gap-1.5">
-        <img src="${EXPLAINED_IMAGE_PATH}" alt="OpenSearch Inspect guide" class="w-12 h-8 object-cover rounded border border-slate-200 cursor-pointer hover:ring-2 hover:ring-indigo-400 transition" id="logExplainThumbImg" title="Click to view full image">
+        <img src="${EXPLAINED_IMAGE_PATH}" alt="OpenSearch Inspect guide" class="w-12 h-8 object-cover rounded border border-slate-200 cursor-pointer hover:ring-2 hover:ring-primary/40 transition" id="logExplainThumbImg" title="Click to view full image">
       </div>
     </div>
-    <textarea id="logInput" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm resize-none" rows="15" placeholder="OpenSearch -> Get all the hits for the operation ID -> Inspect > Response -> Copy button -> Paste your logs here..."></textarea>
-    <div class="mt-4 pt-4 border-t border-slate-200">
-      <button class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="analyzeBtn"><i class="fas fa-chart-line"></i> Analyze Logs</button>
-      <button class="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 px-5 py-2.5 text-sm font-medium transition shadow-sm ml-2" type="button" id="demoBtn" title="Paste sample logs with anonymized data"><i class="fas fa-magic"></i> Demo</button>
-      <button class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 px-5 py-2.5 text-sm font-medium transition shadow-sm ml-2" type="button" id="clearBtn"><i class="fas fa-trash-alt"></i> Clear</button>
+    <textarea id="logInput" class="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm resize-none" rows="15" placeholder="OpenSearch -> Get all the hits for the operation ID -> Inspect > Response -> Copy button -> Paste your logs here..."></textarea>
+    <div class="mt-4 pt-4 border-t border-slate-200/90 flex flex-wrap gap-2">
+      <button class="inline-flex items-center gap-2 rounded-lg bg-primary hover:bg-primary-dark text-white px-5 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="analyzeBtn"><i class="fas fa-chart-line"></i> Analyze logs</button>
+      <button class="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 text-sky-800 hover:bg-sky-100 px-5 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="demoBtn" title="Paste sample logs with anonymized data"><i class="fas fa-magic"></i> Demo</button>
+      <button class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-5 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="clearBtn"><i class="fas fa-trash-alt"></i> Clear</button>
     </div>
     <div id="logExplainModal" class="hidden fixed inset-0 z-[999] flex items-center justify-center p-4" style="background:rgba(0,0,0,0.6)">
       <div class="relative max-w-4xl max-h-[90vh] w-full">
@@ -44,8 +49,9 @@ function render() {
       <pre id="analysisResults" class="text-sm text-slate-600">Results will appear here...</pre>
     </div>
     <div id="emailOutput" class="mt-6 hidden">
-      <h4 class="text-lg font-semibold text-slate-800 mb-2">Generated Email:</h4>
+      <h4 class="text-lg font-semibold text-slate-800 mb-2">Generated email</h4>
       <pre id="generatedEmail"></pre>
+    </div>
     </div>
     </div>
   `;

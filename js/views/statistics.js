@@ -366,20 +366,24 @@ function applySearch(container) {
 
 function render() {
   return `
-    <div class="relative">
-      <button type="button" id="statsRefreshBtn" class="absolute top-0 right-0 p-2.5 rounded-lg text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 transition font-medium" title="Reset all"><i class="fas fa-sync-alt text-base"></i></button>
-      <h2 class="text-xl font-bold text-slate-800 mb-2 pr-10">Statistics data</h2>
-      <p class="text-slate-600 text-sm mb-4">Paste Slack alerts monitoring channel content below, or load from CSV export.</p>
-      <textarea id="statsInput" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm resize-none" rows="10" placeholder="Paste Slack channel messages here..."></textarea>
-      <div class="mt-4 pt-4 border-t border-slate-200 flex flex-wrap gap-2 items-center">
-        <button type="button" id="statsAnalyzeBtn" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm"><i class="fas fa-chart-bar"></i> Analyze</button>
+    <div class="max-w-6xl mx-auto">
+      <div class="mb-6 pr-10">
+        <p class="mt-page-eyebrow">Slack monitoring</p>
+        <h1 class="mt-page-title mb-2">Alert statistics</h1>
+        <p class="mt-page-desc">Paste channel exports or load a CSV to chart volume, types, labels, and browse recent alerts.</p>
+      </div>
+    <div class="relative rounded-xl border border-slate-200/90 bg-slate-50/40 p-4 sm:p-6">
+      <button type="button" id="statsRefreshBtn" class="absolute top-3 right-3 p-2.5 rounded-lg text-primary hover:bg-primary/10 transition font-medium" title="Reset all"><i class="fas fa-sync-alt text-base"></i></button>
+      <textarea id="statsInput" class="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm resize-none" rows="10" placeholder="Paste Slack channel messages here..."></textarea>
+      <div class="mt-4 pt-4 border-t border-slate-200/90 flex flex-wrap gap-2 items-center">
+        <button type="button" id="statsAnalyzeBtn" class="inline-flex items-center gap-2 rounded-lg bg-primary hover:bg-primary-dark text-white px-5 py-2.5 text-sm font-medium transition shadow-sm"><i class="fas fa-chart-bar"></i> Analyze</button>
         <button type="button" id="statsDemoBtn" class="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 px-5 py-2.5 text-sm font-medium transition shadow-sm" title="Load sample Slack alerts"><i class="fas fa-magic"></i> Load Demo</button>
         <button type="button" id="statsCsvBtn" class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-5 py-2.5 text-sm font-medium transition shadow-sm" title="Load alerts from CSV file"><i class="fas fa-file-csv"></i> Load from CSV</button>
         <input type="file" id="statsCsvInput" accept=".csv,text/csv" class="hidden" />
-        <button type="button" id="statsClearBtn" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 px-5 py-2.5 text-sm font-medium transition shadow-sm"><i class="fas fa-trash-alt"></i> Clear</button>
+        <button type="button" id="statsClearBtn" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-5 py-2.5 text-sm font-medium transition shadow-sm"><i class="fas fa-trash-alt"></i> Clear</button>
       </div>
 
-      <div id="statsEmpty" class="mt-6 p-6 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 text-center">
+      <div id="statsEmpty" class="mt-6 p-6 rounded-xl bg-white border border-slate-200 text-slate-600 text-center shadow-sm">
         <i class="fas fa-chart-pie text-4xl mb-2 text-slate-400"></i>
         <p class="m-0">Paste Slack content and click Analyze to see the dashboard.</p>
       </div>
@@ -387,15 +391,15 @@ function render() {
       <div id="statsDashboard" class="mt-6 hidden">
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div class="text-2xl font-bold text-indigo-600" id="statsKpiTotal">0</div>
+            <div class="text-2xl font-bold text-primary" id="statsKpiTotal">0</div>
             <div class="text-sm text-slate-600">Total Alerts</div>
           </div>
           <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div class="text-2xl font-bold text-indigo-600" id="statsKpiTypes">0</div>
+            <div class="text-2xl font-bold text-primary" id="statsKpiTypes">0</div>
             <div class="text-sm text-slate-600">Alert Types</div>
           </div>
           <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div class="text-2xl font-bold text-indigo-600" id="statsKpiServices">0</div>
+            <div class="text-2xl font-bold text-primary" id="statsKpiServices">0</div>
             <div class="text-sm text-slate-600">Services</div>
           </div>
           <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -404,13 +408,13 @@ function render() {
           </div>
         </div>
 
-        <div class="mb-6 p-4 rounded-xl border border-slate-200 bg-slate-50">
+        <div class="mb-6 p-4 rounded-xl border border-slate-200 bg-white shadow-sm">
           <label class="block text-sm font-semibold text-slate-700 mb-2"><i class="fas fa-search mr-1"></i> Search</label>
           <div class="flex flex-wrap gap-2">
-            <input type="text" id="statsSearch" placeholder="Search message, operation ID, label, alert type…" class="flex-1 min-w-[200px] rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-primary focus:border-primary" autocomplete="off" />
-            <input type="date" id="statsDateFrom" class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary" title="From date" />
-            <input type="date" id="statsDateTo" class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary" title="To date" />
-            <button type="button" id="statsSearchBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 text-sm font-medium transition"><i class="fas fa-filter"></i> Filter</button>
+            <input type="text" id="statsSearch" placeholder="Search message, operation ID, label, alert type…" class="flex-1 min-w-[200px] rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-primary focus:border-primary bg-white" autocomplete="off" />
+            <input type="date" id="statsDateFrom" class="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary bg-white" title="From date" />
+            <input type="date" id="statsDateTo" class="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary bg-white" title="To date" />
+            <button type="button" id="statsSearchBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-primary hover:bg-primary-dark text-white px-4 py-2 text-sm font-medium transition"><i class="fas fa-filter"></i> Filter</button>
           </div>
         </div>
 
@@ -448,6 +452,7 @@ function render() {
           </div>
         </div>
       </div>
+    </div>
     </div>
   `;
 }

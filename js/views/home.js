@@ -1,49 +1,75 @@
 /**
- * Home view – welcome and tool links (hash routes). Tailwind styled.
+ * Home view – landing grid (hash routes). Styled for static GitHub Pages shell.
  */
 var homeView = {
   route: 'home',
   navLabel: 'HOME Page',
 
   render: function () {
-    return `
-      <div class="text-center">
-        <h1 class="text-2xl sm:text-3xl font-bold text-slate-800 mb-2">Welcome to Monitor Tools</h1>
-        <p class="text-slate-600 mb-8">This site offers various tools for log analysis and more.</p>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          <a href="#/nested" class="group flex flex-col items-center gap-4 rounded-2xl bg-gradient-to-br from-purple-50 to-violet-50 border-2 border-purple-200 p-6 shadow-md hover:shadow-xl hover:border-purple-400 hover:-translate-y-1 transition-all duration-300">
-            <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform duration-300">
-              <i class="fas fa-sitemap text-xl"></i>
-            </div>
-            <span class="font-semibold text-slate-800 group-hover:text-purple-700 transition-colors">Monitor Query Builder</span>
-          </a>
-          <a href="#/email" class="group flex flex-col items-center gap-4 rounded-2xl bg-gradient-to-br from-purple-50 to-violet-50 border-2 border-purple-200 p-6 shadow-md hover:shadow-xl hover:border-purple-400 hover:-translate-y-1 transition-all duration-300">
-            <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform duration-300">
-              <i class="fas fa-envelope text-xl"></i>
-            </div>
-            <span class="font-semibold text-slate-800 group-hover:text-purple-700 transition-colors">Email Generator</span>
-          </a>
-          <a href="#/tokens" class="group flex flex-col items-center gap-4 rounded-2xl bg-gradient-to-br from-purple-50 to-violet-50 border-2 border-purple-200 p-6 shadow-md hover:shadow-xl hover:border-purple-400 hover:-translate-y-1 transition-all duration-300">
-            <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform duration-300">
-              <i class="fas fa-key text-xl"></i>
-            </div>
-            <span class="font-semibold text-slate-800 group-hover:text-purple-700 transition-colors">Tokens Extractor</span>
-          </a>
-          <a href="#/analyze" class="group flex flex-col items-center gap-4 rounded-2xl bg-gradient-to-br from-purple-50 to-violet-50 border-2 border-purple-200 p-6 shadow-md hover:shadow-xl hover:border-purple-400 hover:-translate-y-1 transition-all duration-300">
-            <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform duration-300">
-              <i class="fas fa-chart-line text-xl"></i>
-            </div>
-            <span class="font-semibold text-slate-800 group-hover:text-purple-700 transition-colors">Analyze Logs</span>
-          </a>
-          <a href="#/statistics" class="group flex flex-col items-center gap-4 rounded-2xl bg-gradient-to-br from-purple-50 to-violet-50 border-2 border-purple-200 p-6 shadow-md hover:shadow-xl hover:border-purple-400 hover:-translate-y-1 transition-all duration-300">
-            <div class="w-14 h-14 rounded-2xl bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center text-white shadow-lg group-hover:scale-110 transition-transform duration-300">
-              <i class="fas fa-chart-bar text-xl"></i>
-            </div>
-            <span class="font-semibold text-slate-800 group-hover:text-purple-700 transition-colors">Statistics</span>
-          </a>
-        </div>
-      </div>
-    `;
+    return ''
+      + '<div class="max-w-3xl mx-auto mb-10 text-center">'
+      + '  <p class="mt-page-eyebrow">Operations toolkit</p>'
+      + '  <h1 class="mt-page-title mb-3">Monitor Tools</h1>'
+      + '  <p class="mt-page-desc mx-auto">Browser-based helpers for monitoring workflows, queries, handovers, and stats. Runs entirely in the page—no install.</p>'
+      + '</div>'
+      + '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">'
+      + '  <a href="#/nested" class="mt-tool-card text-left items-start">'
+      + '    <span class="mt-tool-card-icon"><i class="fas fa-sitemap"></i></span>'
+      + '    <div class="w-full">'
+      + '      <p class="mt-tool-card-title text-left w-full">Query Builder</p>'
+      + '      <p class="text-xs text-slate-500 mt-1 leading-relaxed">Build and compile monitor queries with field assist.</p>'
+      + '    </div>'
+      + '  </a>'
+      + '  <a href="#/checklist" class="mt-tool-card text-left items-start">'
+      + '    <span class="mt-tool-card-icon"><i class="fas fa-clipboard-check"></i></span>'
+      + '    <div class="w-full">'
+      + '      <p class="mt-tool-card-title text-left w-full">Shift checklist</p>'
+      + '      <p class="text-xs text-slate-500 mt-1 leading-relaxed">Track shift tasks, handover notes, and history.</p>'
+      + '    </div>'
+      + '  </a>'
+      + '  <a href="#/shift-history" class="mt-tool-card text-left items-start">'
+      + '    <span class="mt-tool-card-icon"><i class="fas fa-clock-rotate-left"></i></span>'
+      + '    <div class="w-full">'
+      + '      <p class="mt-tool-card-title text-left w-full">Shift history</p>'
+      + '      <p class="text-xs text-slate-500 mt-1 leading-relaxed">Unlock saved shifts with your history password.</p>'
+      + '    </div>'
+      + '  </a>'
+      + '  <a href="#/email" class="mt-tool-card text-left items-start">'
+      + '    <span class="mt-tool-card-icon"><i class="fas fa-envelope"></i></span>'
+      + '    <div class="w-full">'
+      + '      <p class="mt-tool-card-title text-left w-full">Email generator</p>'
+      + '      <p class="text-xs text-slate-500 mt-1 leading-relaxed">Format and preview operational emails.</p>'
+      + '    </div>'
+      + '  </a>'
+      + '  <a href="#/tokens" class="mt-tool-card text-left items-start">'
+      + '    <span class="mt-tool-card-icon"><i class="fas fa-key"></i></span>'
+      + '    <div class="w-full">'
+      + '      <p class="mt-tool-card-title text-left w-full">Tokens extractor</p>'
+      + '      <p class="text-xs text-slate-500 mt-1 leading-relaxed">Parse and extract token-like strings from text.</p>'
+      + '    </div>'
+      + '  </a>'
+      + '  <a href="#/analyze" class="mt-tool-card text-left items-start">'
+      + '    <span class="mt-tool-card-icon"><i class="fas fa-chart-line"></i></span>'
+      + '    <div class="w-full">'
+      + '      <p class="mt-tool-card-title text-left w-full">Analyze logs</p>'
+      + '      <p class="text-xs text-slate-500 mt-1 leading-relaxed">Explore log timelines and search highlights.</p>'
+      + '    </div>'
+      + '  </a>'
+      + '  <a href="#/statistics" class="mt-tool-card text-left items-start">'
+      + '    <span class="mt-tool-card-icon"><i class="fas fa-chart-bar"></i></span>'
+      + '    <div class="w-full">'
+      + '      <p class="mt-tool-card-title text-left w-full">Slack alert stats</p>'
+      + '      <p class="text-xs text-slate-500 mt-1 leading-relaxed">Charts and breakdowns from Slack exports.</p>'
+      + '    </div>'
+      + '  </a>'
+      + '  <a href="#/statistics-hubspot" class="mt-tool-card text-left items-start sm:col-span-2 lg:col-span-1">'
+      + '    <span class="mt-tool-card-icon"><i class="fab fa-hubspot"></i></span>'
+      + '    <div class="w-full">'
+      + '      <p class="mt-tool-card-title text-left w-full">HubSpot statistics</p>'
+      + '      <p class="text-xs text-slate-500 mt-1 leading-relaxed">Ticket volume, owners, and shift-style views.</p>'
+      + '    </div>'
+      + '  </a>'
+      + '</div>';
   },
 
   mount: function () {}

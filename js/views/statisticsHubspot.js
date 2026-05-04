@@ -808,20 +808,24 @@ function applySearch(container) {
 
 function render() {
   return `
-    <div class="relative">
-      <button type="button" id="hubspotRefreshBtn" class="absolute top-0 right-0 p-2.5 rounded-lg text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 transition font-medium" title="Reset all"><i class="fas fa-sync-alt text-base"></i></button>
-      <h2 class="text-xl font-bold text-slate-800 mb-2 pr-10">Statistics - Hubspot</h2>
-      <p class="text-slate-600 text-sm mb-4">Paste HubSpot tickets CSV below, or load from file export.</p>
-      <textarea id="hubspotInput" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm resize-none" rows="10" placeholder="Paste HubSpot tickets CSV here..."></textarea>
-      <div class="mt-4 pt-4 border-t border-slate-200 flex flex-wrap gap-2 items-center">
-        <button type="button" id="hubspotAnalyzeBtn" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm"><i class="fas fa-chart-bar"></i> Analyze</button>
+    <div class="max-w-6xl mx-auto">
+      <div class="mb-6 pr-10">
+        <p class="mt-page-eyebrow">HubSpot export</p>
+        <h1 class="mt-page-title mb-2">Ticket statistics</h1>
+        <p class="mt-page-desc">Paste a tickets CSV or load an export to chart pipelines, owners, shifts, and browse rows.</p>
+      </div>
+    <div class="relative rounded-xl border border-slate-200/90 bg-slate-50/40 p-4 sm:p-6">
+      <button type="button" id="hubspotRefreshBtn" class="absolute top-3 right-3 p-2.5 rounded-lg text-primary hover:bg-primary/10 transition font-medium" title="Reset all"><i class="fas fa-sync-alt text-base"></i></button>
+      <textarea id="hubspotInput" class="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm resize-none" rows="10" placeholder="Paste HubSpot tickets CSV here..."></textarea>
+      <div class="mt-4 pt-4 border-t border-slate-200/90 flex flex-wrap gap-2 items-center">
+        <button type="button" id="hubspotAnalyzeBtn" class="inline-flex items-center gap-2 rounded-lg bg-primary hover:bg-primary-dark text-white px-5 py-2.5 text-sm font-medium transition shadow-sm"><i class="fas fa-chart-bar"></i> Analyze</button>
         <button type="button" id="hubspotDemoBtn" class="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 px-5 py-2.5 text-sm font-medium transition shadow-sm" title="Load sample HubSpot tickets"><i class="fas fa-magic"></i> Load Demo</button>
         <button type="button" id="hubspotCsvBtn" class="inline-flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 px-5 py-2.5 text-sm font-medium transition shadow-sm" title="Load from CSV file"><i class="fas fa-file-csv"></i> Load from CSV</button>
         <input type="file" id="hubspotCsvInput" accept=".csv,text/csv" class="hidden" />
-        <button type="button" id="hubspotClearBtn" class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 px-5 py-2.5 text-sm font-medium transition shadow-sm"><i class="fas fa-trash-alt"></i> Clear</button>
+        <button type="button" id="hubspotClearBtn" class="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 px-5 py-2.5 text-sm font-medium transition shadow-sm"><i class="fas fa-trash-alt"></i> Clear</button>
       </div>
 
-      <div id="hubspotEmpty" class="mt-6 p-6 rounded-xl bg-slate-100 border border-slate-200 text-slate-600 text-center">
+      <div id="hubspotEmpty" class="mt-6 p-6 rounded-xl bg-white border border-slate-200 text-slate-600 text-center shadow-sm">
         <i class="fas fa-chart-pie text-4xl mb-2 text-slate-400"></i>
         <p class="m-0">Paste HubSpot CSV and click Analyze to see the dashboard.</p>
       </div>
@@ -829,15 +833,15 @@ function render() {
       <div id="hubspotDashboard" class="mt-6 hidden">
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
           <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div class="text-2xl font-bold text-indigo-600" id="hubspotKpiTotal">0</div>
+            <div class="text-2xl font-bold text-primary" id="hubspotKpiTotal">0</div>
             <div class="text-sm text-slate-600">Total Tickets</div>
           </div>
           <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div class="text-2xl font-bold text-indigo-600" id="hubspotKpiStatuses">0</div>
+            <div class="text-2xl font-bold text-primary" id="hubspotKpiStatuses">0</div>
             <div class="text-sm text-slate-600">Statuses</div>
           </div>
           <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div class="text-2xl font-bold text-indigo-600" id="hubspotKpiPipelines">0</div>
+            <div class="text-2xl font-bold text-primary" id="hubspotKpiPipelines">0</div>
             <div class="text-sm text-slate-600">Pipelines</div>
           </div>
           <div class="rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -846,47 +850,47 @@ function render() {
           </div>
         </div>
 
-        <div class="mb-6 p-4 rounded-xl border border-slate-200 bg-slate-50">
+        <div class="mb-6 p-4 rounded-xl border border-slate-200 bg-white shadow-sm">
           <label class="block text-sm font-semibold text-slate-700 mb-2"><i class="fas fa-search mr-1"></i> Search</label>
           <div class="flex flex-wrap gap-2">
-            <input type="text" id="hubspotSearch" placeholder="Search ticket name, ID, status, owner, type…" class="flex-1 min-w-[200px] rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-primary focus:border-primary" autocomplete="off" />
-            <input type="date" id="hubspotDateFrom" class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary" title="From date" />
-            <input type="date" id="hubspotDateTo" class="rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary" title="To date" />
-            <button type="button" id="hubspotSearchBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 text-sm font-medium transition"><i class="fas fa-filter"></i> Filter</button>
+            <input type="text" id="hubspotSearch" placeholder="Search ticket name, ID, status, owner, type…" class="flex-1 min-w-[200px] rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 placeholder-slate-400 focus:ring-2 focus:ring-primary focus:border-primary bg-white" autocomplete="off" />
+            <input type="date" id="hubspotDateFrom" class="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary bg-white" title="From date" />
+            <input type="date" id="hubspotDateTo" class="rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary bg-white" title="To date" />
+            <button type="button" id="hubspotSearchBtn" class="inline-flex items-center gap-1.5 rounded-lg bg-primary hover:bg-primary-dark text-white px-4 py-2 text-sm font-medium transition"><i class="fas fa-filter"></i> Filter</button>
           </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          <div class="rounded-xl border border-slate-200 bg-white p-4 cursor-pointer hover:ring-2 hover:ring-indigo-200 transition" data-chart="time">
+          <div class="rounded-xl border border-slate-200 bg-white p-4 cursor-pointer hover:ring-2 hover:ring-primary/25 transition" data-chart="time">
             <h4 class="text-sm font-semibold text-slate-800 mb-3">Tickets over time</h4>
             <div class="chart-container" style="height: 220px;"><canvas id="hubspotChartTime"></canvas></div>
           </div>
-          <div class="rounded-xl border border-slate-200 bg-white p-4 cursor-pointer hover:ring-2 hover:ring-indigo-200 transition" data-chart="status">
+          <div class="rounded-xl border border-slate-200 bg-white p-4 cursor-pointer hover:ring-2 hover:ring-primary/25 transition" data-chart="status">
             <h4 class="text-sm font-semibold text-slate-800 mb-3">By status</h4>
             <div class="chart-container" style="height: 220px;"><canvas id="hubspotChartStatus"></canvas></div>
           </div>
-          <div class="rounded-xl border border-slate-200 bg-white p-4 cursor-pointer hover:ring-2 hover:ring-indigo-200 transition" data-chart="type">
+          <div class="rounded-xl border border-slate-200 bg-white p-4 cursor-pointer hover:ring-2 hover:ring-primary/25 transition" data-chart="type">
             <h4 class="text-sm font-semibold text-slate-800 mb-3">By ticket type</h4>
             <div class="chart-container" style="height: 220px;"><canvas id="hubspotChartType"></canvas></div>
           </div>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">
-          <div class="rounded-xl border border-slate-200 bg-white p-4 cursor-pointer hover:ring-2 hover:ring-indigo-200 transition" data-chart="owner">
+          <div class="rounded-xl border border-slate-200 bg-white p-4 cursor-pointer hover:ring-2 hover:ring-primary/25 transition" data-chart="owner">
             <h4 class="text-sm font-semibold text-slate-800 mb-3">By owner</h4>
             <div class="chart-container" style="height: 220px;"><canvas id="hubspotChartOwner"></canvas></div>
           </div>
-          <div class="rounded-xl border border-slate-200 bg-white p-4 cursor-pointer hover:ring-2 hover:ring-indigo-200 transition" data-chart="dayOfWeek">
+          <div class="rounded-xl border border-slate-200 bg-white p-4 cursor-pointer hover:ring-2 hover:ring-primary/25 transition" data-chart="dayOfWeek">
             <h4 class="text-sm font-semibold text-slate-800 mb-3">By day of week</h4>
             <div class="chart-container" style="height: 220px;"><canvas id="hubspotChartDayOfWeek"></canvas></div>
           </div>
-          <div class="rounded-xl border border-slate-200 bg-white p-4 cursor-pointer hover:ring-2 hover:ring-indigo-200 transition" data-chart="shift">
+          <div class="rounded-xl border border-slate-200 bg-white p-4 cursor-pointer hover:ring-2 hover:ring-primary/25 transition" data-chart="shift">
             <h4 class="text-sm font-semibold text-slate-800 mb-3">By shift</h4>
             <div class="chart-container" style="height: 220px;"><canvas id="hubspotChartShift"></canvas></div>
           </div>
         </div>
 
-        <div class="rounded-xl border border-slate-200 bg-white p-4 mb-6 cursor-pointer hover:ring-2 hover:ring-indigo-200 transition" data-chart="dayShift">
+        <div class="rounded-xl border border-slate-200 bg-white p-4 mb-6 cursor-pointer hover:ring-2 hover:ring-primary/25 transition" data-chart="dayShift">
           <h4 class="text-sm font-semibold text-slate-800 mb-3">Manager view: tickets by day and shift</h4>
           <p class="text-xs text-slate-500 mb-2">See which day and shift combinations are busiest (Morning 07:00–15:00, Evening 15:00–23:00, Night 23:00–07:00)</p>
           <div class="chart-container" style="height: 280px;"><canvas id="hubspotChartDayShift"></canvas></div>
@@ -937,6 +941,7 @@ function render() {
           <div id="hubspotChartModalBody" class="flex-1 overflow-y-auto p-4"></div>
         </div>
       </div>
+    </div>
     </div>
   `;
 }

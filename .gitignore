@@ -8,8 +8,15 @@ node_modules/
 # Env and logs (optional)
 .env
 .env.local
+# If you ever save a plaintext checklist dump, keep it out of git (encrypted *.enc.json backups are intended for commit).
+*-checklist-backup.plain.json
+# Generated from .env.local for local browser use (run: npm run local-config)
+js/config.local.js
 *.log
 npm-debug.log*
+
+# Netlify local link state (optional)
+.netlify/
 
 # Build/output (if you add any later)
 dist/

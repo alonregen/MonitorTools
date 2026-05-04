@@ -1,0 +1,47 @@
+# Builds the static site: injects Web3Forms (and optional owner email) into js/config.local.js, then publishes to GitHub Pages.
+# Shift history password is NOT embedded in CI output (see scripts/inject-local-env.mjs). Unlock history by typing it on the public site.
+# Repo → Settings → Secrets and variables → Actions: add WEB3FORMS_ACCESS_KEY (optional CHECKLIST_OWNER_EMAIL).
+# Repo → Settings → Pages → Build and deployment → Source: GitHub Actions (not "Deploy from a branch").
+
+name: Deploy GitHub Pages
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Inject checklist config from secrets
+        env:
+          WEB3FORMS_ACCESS_KEY: ${{ secrets.WEB3FORMS_ACCESS_KEY }}
+          CHECKLIST_OWNER_EMAIL: ${{ secrets.CHECKLIST_OWNER_EMAIL }}
+        run: node scripts/inject-local-env.mjs --ci
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload site
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

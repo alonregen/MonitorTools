@@ -15,17 +15,23 @@ function byId(id, container) {
 
 function render() {
   return `
-    <div class="relative">
-    <button type="button" id="emailRefreshBtn" class="absolute top-0 right-0 p-2.5 rounded-lg text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 transition font-medium" title="Reset all"><i class="fas fa-sync-alt text-base"></i></button>
-    <h2 class="text-xl font-bold text-slate-800 mb-4 pr-10">Payouts Email Generator</h2>
+    <div class="max-w-4xl mx-auto">
+    <div class="mb-6 pr-10">
+      <p class="mt-page-eyebrow">Communications</p>
+      <h1 class="mt-page-title mb-2">Payouts email generator</h1>
+      <p class="mt-page-desc">TSV payout rows grouped by gateway with alert-style blocks and copy-ready HTML.</p>
+    </div>
+    <div class="relative rounded-xl border border-slate-200/90 bg-slate-50/40 p-4 sm:p-6">
+    <button type="button" id="emailRefreshBtn" class="absolute top-3 right-3 p-2.5 rounded-lg text-primary hover:bg-primary/10 transition font-medium" title="Reset all"><i class="fas fa-sync-alt text-base"></i></button>
     <form id="payoutsForm">
-      <label for="payoutData" class="block text-sm font-medium text-slate-700 mb-1">Paste Payout Data:</label>
-      <textarea id="payoutData" rows="10" class="w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm resize-none" placeholder="Paste your payout data here..."></textarea>
-      <div class="mt-4 pt-4 border-t border-slate-200">
-        <button type="button" class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm" id="generateEmailsBtn"><i class="fas fa-envelope"></i> Generate Email Content</button>
+      <label for="payoutData" class="block text-sm font-medium text-slate-700 mb-1">Paste payout data (TSV)</label>
+      <textarea id="payoutData" rows="10" class="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm resize-none" placeholder="Paste your payout data here..."></textarea>
+      <div class="mt-4 pt-4 border-t border-slate-200/90">
+        <button type="button" class="inline-flex items-center gap-2 rounded-lg bg-primary hover:bg-primary-dark text-white px-5 py-2.5 text-sm font-medium transition shadow-sm" id="generateEmailsBtn"><i class="fas fa-envelope"></i> Generate email content</button>
       </div>
     </form>
     <div id="output" class="mt-6 email-output space-y-4"></div>
+    </div>
     </div>
   `;
 }
@@ -52,9 +58,9 @@ function generateEmailsByGateway(payouts) {
   const emails = {};
   payouts.forEach(payout => {
     if (!emails[payout.gatewayName]) {
-      emails[payout.gatewayName] = '<div class="email-block rounded-xl border border-slate-200 bg-indigo-50/50 p-4 shadow-sm" role="alert" data-gateway="' + dom.escapeHtml(payout.gatewayName) + '"><div class="flex items-center justify-between mb-2"><h4 class="text-lg font-semibold text-slate-800">' + dom.escapeHtml(payout.gatewayName) + '</h4><button type="button" class="copy-email-btn inline-flex items-center gap-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 text-xs font-medium transition shadow-sm" data-gateway="' + dom.escapeHtml(payout.gatewayName) + '"><i class="fas fa-copy"></i> Copy</button></div><p class="text-slate-600 text-sm mb-3">Dear Team,<br>I hope this email finds you well.<br>May you please assist us and clarify for us what is the status of the following payouts for ' + dom.escapeHtml(payout.gatewayName) + '?<br>In case it failed, please let us know what was the failure reason.<br>In case the payout is closed may you please provide us proof of deposit?</p><table class="w-full border-collapse border border-slate-300"><thead><tr class="bg-slate-100"><th class="border border-slate-300 px-3 py-2 text-left text-sm font-semibold">Payout Token</th><th class="border border-slate-300 px-3 py-2 text-left text-sm font-semibold">External Id</th><th class="border border-slate-300 px-3 py-2 text-left text-sm font-semibold">Created Date</th><th class="border border-slate-300 px-3 py-2 text-left text-sm font-semibold">Amount</th></tr></thead><tbody>';
+      emails[payout.gatewayName] = '<div class="email-block rounded-xl border border-slate-200 bg-white p-4 shadow-sm" role="alert" data-gateway="' + dom.escapeHtml(payout.gatewayName) + '"><div class="flex items-center justify-between mb-2"><h4 class="text-lg font-semibold text-slate-800">' + dom.escapeHtml(payout.gatewayName) + '</h4><button type="button" class="copy-email-btn inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-medium transition shadow-sm" data-gateway="' + dom.escapeHtml(payout.gatewayName) + '"><i class="fas fa-copy"></i> Copy</button></div><p class="text-slate-600 text-sm mb-3">Dear Team,<br>I hope this email finds you well.<br>May you please assist us and clarify for us what is the status of the following payouts for ' + dom.escapeHtml(payout.gatewayName) + '?<br>In case it failed, please let us know what was the failure reason.<br>In case the payout is closed may you please provide us proof of deposit?</p><table class="w-full border-collapse border border-slate-200"><thead><tr class="bg-slate-50"><th class="border border-slate-200 px-3 py-2 text-left text-sm font-semibold">Payout Token</th><th class="border border-slate-200 px-3 py-2 text-left text-sm font-semibold">External Id</th><th class="border border-slate-200 px-3 py-2 text-left text-sm font-semibold">Created Date</th><th class="border border-slate-200 px-3 py-2 text-left text-sm font-semibold">Amount</th></tr></thead><tbody>';
     }
-    emails[payout.gatewayName] += '<tr><td class="border border-slate-300 px-3 py-2 text-sm">' + dom.escapeHtml(payout.payoutToken) + '</td><td class="border border-slate-300 px-3 py-2 text-sm">' + dom.escapeHtml(payout.externalId) + '</td><td class="border border-slate-300 px-3 py-2 text-sm">' + dom.escapeHtml(payout.createdDate) + '</td><td class="border border-slate-300 px-3 py-2 text-sm">' + dom.escapeHtml(payout.amount) + '</td></tr>';
+    emails[payout.gatewayName] += '<tr><td class="border border-slate-200 px-3 py-2 text-sm">' + dom.escapeHtml(payout.payoutToken) + '</td><td class="border border-slate-200 px-3 py-2 text-sm">' + dom.escapeHtml(payout.externalId) + '</td><td class="border border-slate-200 px-3 py-2 text-sm">' + dom.escapeHtml(payout.createdDate) + '</td><td class="border border-slate-200 px-3 py-2 text-sm">' + dom.escapeHtml(payout.amount) + '</td></tr>';
   });
   const result = [];
   for (const gatewayName in emails) {

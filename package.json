@@ -6,8 +6,11 @@
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
+    "prestart": "node scripts/inject-local-env.mjs",
+    "preserve": "node scripts/inject-local-env.mjs",
     "start": "npx -y serve -p 3000 -s .",
-    "serve": "npx -y serve -p 3000 -s ."
+    "serve": "npx -y serve -p 3000 -s .",
+    "local-config": "node scripts/inject-local-env.mjs"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

@@ -2,11 +2,22 @@
 
 Static multi-tool web app that runs on **GitHub Pages** (client-side only: HTML, CSS, JS). Built as a single-page application (SPA) with hash-based routing.
 
+## Live site (GitHub Pages)
+
+After you enable **Pages** with **GitHub Actions**, the published URL is typically:
+
+- **Project site:** `https://<username>.github.io/<repository>/` (for example `https://<username>.github.io/MonitorTools/`)
+- **User/org site:** `https://<username>.github.io/` only applies when this repository is named `<username>.github.io`.
+
+Routes use the hash, for example `https://<username>.github.io/MonitorTools/#/checklist` or `.../#/home`.
+
+In the repository, go to **Settings → Pages → Build and deployment** and set the source to **GitHub Actions** (not “Deploy from a branch”) so [.github/workflows/deploy-pages.yml](.github/workflows/deploy-pages.yml) runs on push to `main` and uploads the static tree.
+
 ## Running the app
 
 **Static HTML/JS app. No server needed.**
 
-- **GitHub Pages:** Push the repo to GitHub, enable Pages in repo Settings, then open `https://<username>.github.io/MonitorTools/`.
+- **GitHub Pages:** Push to `main` with Actions enabled; open your Pages URL and append a hash route if needed (e.g. `#/home`).
 - **Locally:** **Do not open the MonitorTools folder in the browser** (that shows a file list). Instead, double‑click **`index.html`** or **`Open the app.html`** so the app loads. Use the file, not the folder.
 
 ## Features
@@ -16,13 +27,14 @@ Static multi-tool web app that runs on **GitHub Pages** (client-side only: HTML,
 - **Email Generator** – TSV payout data → emails grouped by gateway (alert blocks)
 - **Tokens Extractor** – Extract `payment_token:` and `payout_token:` from text; copy buttons; error alert when input is empty
 - **Analyze Logs** – Paste JSON logs → distribution chart (Chart.js) and summary
+- **Shift Checklist** – Interactive checklist with local history retention (last 6), export actions, and optional frontend history password gate
 
 ## Tech stack
 
-- Bootstrap 5.3.3 (CDN)
+- Tailwind CSS (CDN) + small custom theme in `index.html`
 - Font Awesome 6.5.1 (CDN)
-- Chart.js 4.4.1 (CDN, for Analyze view)
-- Vanilla JS (classic scripts, no build step); works from file:// and GitHub Pages
+- Chart.js 4.4.1 (CDN, statistics and analyze views)
+- Vanilla JS (classic scripts, no build step); works from `file://` and GitHub Pages
 
 ## Project structure
 
@@ -94,11 +106,19 @@ Use the **full URL with trailing slash** when sharing: `https://<username>.githu
 
 ## Deploy on GitHub Pages
 
+**Recommended if you use checklist “Send Email” (Web3Forms):** deploy with **GitHub Actions** so the key lives in **Repository secrets**, not in git.
+
 1. Push the repo to GitHub.
-2. Go to the repo **Settings → Pages**.
-3. **Source**: Deploy from a branch. **Branch**: `main` (or your default). **Folder**: `/ (root)`.
-4. Save. After deployment, the app will be at `https://<username>.github.io/<repo>/`.
-5. Open that URL (with a trailing slash) to use the app.
+2. **Settings → Secrets and variables → Actions → New repository secret**
+   - `WEB3FORMS_ACCESS_KEY` — your Web3Forms access key (this **is** written into generated `js/config.local.js` on deploy, so treat the live site as exposing it to anyone who loads the app—same as any static API key pattern).
+   - Optional: `CHECKLIST_OWNER_EMAIL` — used as the Web3Forms submitter field when supported.
+3. **Settings → Pages → Build and deployment → Source:** choose **GitHub Actions** (not “Deploy from a branch”). If you previously used branch deploy, switch to Actions so only the workflow publishes the site.
+4. The workflow **`.github/workflows/deploy-pages.yml`** runs on every push to **`main`**: it runs `node scripts/inject-local-env.mjs --ci`, then uploads the repo root (including generated `js/config.local.js`) to Pages. **The shift history password is not injected in CI** (so it does not appear in public `config.local.js`). Use **Shift history** / unlock and type the password in the browser, or set `SHIFT_HISTORY_PASSWORD` only in local `.env.local` for development. Deliberate opt-in to embed it in Pages exists only via `INJECT_SHIFT_HISTORY_PASSWORD_IN_PAGES=true` in the workflow env (not recommended).
+5. If your default branch is not `main`, edit the `on.push.branches` list in that workflow file.
+
+The live site URL: `https://<username>.github.io/<repo>/` (use a trailing slash when sharing).
+
+**Simpler option (no Actions):** **Source → Deploy from a branch** (`main`, `/ (root)`). The app works, but Web3Forms will not be configured unless you commit a key (not recommended) or only use email locally via `.env.local`.
 
 ## Footer
 
@@ -114,3 +134,50 @@ The footer includes:
 ## Version
 
 Update the footer line in `index.html` (e.g. “App Version: 1.0.0 | Updated: 2026-02-15”) when releasing.
+
+## Shift History Password Gate (GitHub Pages)
+
+The checklist history panel supports a browser-side password gate for convenience/privacy.
+
+- Set one of these globals before `js/views/checklist.js` loads:
+  - `window.MONITOR_TOOLS_SHIFT_HISTORY_PASSWORD = "your-password"`
+  - or `window.__MONITOR_TOOLS_CONFIG__ = { shiftHistoryPassword: "your-password" }`
+- If neither is set, history stays unavailable and a setup message is shown.
+- History is stored in browser `localStorage` and automatically trimmed to the latest 6 snapshots.
+- When a password is set and the browser supports **Web Crypto**, those snapshots are stored **encrypted at rest** (PBKDF2 + AES-GCM). The checklist UI still unlocks with the same password; while locked, the decrypted list is not kept on the in-memory `state` object (only an encrypted blob is written to `localStorage`).
+
+Important:
+- This is **not** true security on a static site. If you ever **do** put the password into shipped JS (local `config.local.js` or the optional CI embed flag), it can be read from the network or source like any other static asset.
+- **GitHub Actions deploy (default):** the workflow does **not** write `SHIFT_HISTORY_PASSWORD` into `js/config.local.js`, so that secret is **not** exposed on the public site—users unlock history by **typing** the password in the UI.
+- For real access control, use a backend authentication flow.
+
+### Encrypted file backup (safe to commit to git)
+
+Checklist data normally lives only in the browser (`localStorage`) and is **not** in the repository. If you want a **copy in git** without readable secrets:
+
+1. On the **Shift checklist** (or **Shift history**) page, use **Export backup** under *Encrypted backup (git-safe)*.
+2. **Password behavior:** If `SHIFT_HISTORY_PASSWORD` is present in the loaded app (from local `js/config.local.js` via `npm run local-config`, or from CI only if you set `INJECT_SHIFT_HISTORY_PASSWORD_IN_PAGES=true`), export uses that **same shift-history password** after a confirm dialog—no separate “file password.” If no password is loaded in the browser (typical public GitHub Pages build), export **asks you for a password** (twice to confirm); use the same value your team uses for shift history so imports stay consistent.
+3. Commit only the downloaded `monitor-tools-checklist-backup-*.enc.json` file. It contains **ciphertext** (`kind`, `v`, `salt`, `iv`, `ct`)—there is no usable checklist data in git without that password.
+4. **Import** tries the configured shift-history password first when it exists; otherwise it prompts. Wrong password or a file encrypted with a different passphrase falls back to a prompt (when configured) or shows an error.
+5. **Do not** commit `.env.local`, `js/config.local.js`, or any password. **Repository secrets** (GitHub Actions) do **not** automatically encrypt in the browser: the static app never sees `SHIFT_HISTORY_PASSWORD` unless it is written into shipped JS (local dev) or you opt into the inject flag (not recommended for public sites).
+
+The live **HTML/JS** of the site in git remains public; this feature only protects **backup files** you choose to add. Anyone can still fork the repo and see the app code.
+
+## Shift Checklist Auto Email (Web3Forms)
+
+The checklist `Send Email` button can send directly from the page (no mail client popup).
+
+- Set one of these globals before `js/views/checklist.js` loads:
+  - `window.MONITOR_TOOLS_WEB3FORMS_ACCESS_KEY = "your-web3forms-access-key"`
+  - or `window.__MONITOR_TOOLS_CONFIG__ = { web3formsAccessKey: "your-web3forms-access-key" }`
+- If no key is set, the checklist shows a clear missing-key message when sending.
+
+### Local secrets (not committed)
+
+1. Copy `.env.local.example` to `.env.local` and set `WEB3FORMS_ACCESS_KEY` (and optionally `SHIFT_HISTORY_PASSWORD`).
+2. Run `npm run local-config` (this also runs automatically before `npm run start` / `npm run serve`). It writes `js/config.local.js`, which is gitignored.
+3. **Commit:** `.env.local.example`, `scripts/inject-local-env.mjs`, and `.gitignore` entries — never `.env.local` or `js/config.local.js`.
+
+Note:
+- In a static frontend, this key is publicly accessible in shipped JS/HTML.
+- For fully secure mail sending, use a backend endpoint instead.

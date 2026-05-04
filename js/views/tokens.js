@@ -65,10 +65,14 @@ function _byId(id, c) {
 /* ── render ───────────────────────────────────────────────── */
 function render() {
   return [
-    '<div class="relative">',
-    '<button type="button" id="tokensRefreshBtn" class="absolute top-0 right-0 p-2.5 rounded-lg text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 transition font-medium" title="Reset all"><i class="fas fa-sync-alt text-base"></i></button>',
-    '<h2 class="text-xl font-bold text-slate-800 mb-2 pr-10">Payment / Payout Token Extractor</h2>',
-    '<p class="text-slate-600 text-sm mb-4">Paste text or select files, then click <strong>Extract</strong>. Use the Custom field to find tokens with any prefix.</p>',
+    '<div class="max-w-4xl mx-auto">',
+    '<div class="mb-6 pr-10">',
+    '<p class="mt-page-eyebrow">Parsing</p>',
+    '<h1 class="mt-page-title mb-2">Token extractor</h1>',
+    '<p class="mt-page-desc">Paste text or add files, then extract <code class="text-xs bg-slate-100 px-1 rounded">payment_</code> / <code class="text-xs bg-slate-100 px-1 rounded">payout_</code> tokens and label pairs. Advanced options tune length and exclusions.</p>',
+    '</div>',
+    '<div class="relative rounded-xl border border-slate-200/90 bg-slate-50/40 p-4 sm:p-6">',
+    '<button type="button" id="tokensRefreshBtn" class="absolute top-3 right-3 p-2.5 rounded-lg text-primary hover:bg-primary/10 transition font-medium" title="Reset all"><i class="fas fa-sync-alt text-base"></i></button>',
 
     /* ── file upload ── */
     '<div id="tokenFilesSection" class="mb-4">',
@@ -103,7 +107,7 @@ function render() {
 
     /* ── buttons row: Extract + Demo + Clear + Advanced ── */
     '<div class="mt-4 pt-4 border-t border-slate-200 flex flex-wrap items-center gap-3">',
-    '  <button class="inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="extractTokensBtn"><i class="fas fa-bolt"></i> Extract Tokens</button>',
+    '  <button class="inline-flex items-center gap-2 rounded-lg bg-primary hover:bg-primary-dark text-white px-5 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="extractTokensBtn"><i class="fas fa-bolt"></i> Extract Tokens</button>',
     '  <button class="inline-flex items-center gap-2 rounded-lg border border-sky-200 bg-sky-50 text-sky-700 hover:bg-sky-100 px-5 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="tokensDemoBtn" title="Paste sample text with mock tokens"><i class="fas fa-magic"></i> Demo</button>',
     '  <button class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="tokensInputClearBtn" title="Clear input and files"><i class="fas fa-eraser"></i> Clear</button>',
     '  <button class="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white hover:bg-slate-50 text-slate-700 px-4 py-2.5 text-sm font-medium transition shadow-sm" type="button" id="tokenAdvancedBtn"><i class="fas fa-sliders-h"></i> Advanced Settings</button>',
@@ -229,21 +233,21 @@ function render() {
     '    <div class="token-box rounded-xl border border-slate-200 bg-slate-50 p-4 min-h-[200px] overflow-y-auto">',
     '      <div class="flex items-center justify-between mb-2">',
     '        <h3 class="text-sm font-semibold text-slate-800">Payment Tokens:</h3>',
-    '        <button type="button" id="copyPaymentTokensBtn" class="copy-tokens-btn inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 text-xs font-medium transition shadow-sm hidden"><i class="fas fa-copy"></i> Copy</button>',
+    '        <button type="button" id="copyPaymentTokensBtn" class="copy-tokens-btn inline-flex items-center gap-1.5 rounded-lg bg-primary hover:bg-primary-dark text-white px-2.5 py-1 text-xs font-medium transition shadow-sm hidden"><i class="fas fa-copy"></i> Copy</button>',
     '      </div>',
     '      <ol id="paymentTokensList" class="list-decimal list-inside text-sm text-slate-700 space-y-1"></ol>',
     '    </div>',
     '    <div class="token-box rounded-xl border border-slate-200 bg-slate-50 p-4 min-h-[200px] overflow-y-auto">',
     '      <div class="flex items-center justify-between mb-2">',
     '        <h3 class="text-sm font-semibold text-slate-800">Payout Tokens:</h3>',
-    '        <button type="button" id="copyPayoutTokensBtn" class="copy-tokens-btn inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 text-xs font-medium transition shadow-sm hidden"><i class="fas fa-copy"></i> Copy</button>',
+    '        <button type="button" id="copyPayoutTokensBtn" class="copy-tokens-btn inline-flex items-center gap-1.5 rounded-lg bg-primary hover:bg-primary-dark text-white px-2.5 py-1 text-xs font-medium transition shadow-sm hidden"><i class="fas fa-copy"></i> Copy</button>',
     '      </div>',
     '      <ol id="payoutTokensList" class="list-decimal list-inside text-sm text-slate-700 space-y-1"></ol>',
     '    </div>',
     '    <div id="customTokensCol" class="token-box rounded-xl border border-slate-200 bg-slate-50 p-4 min-h-[200px] overflow-y-auto hidden">',
     '      <div class="flex items-center justify-between mb-2">',
     '        <h3 id="customTokensTitle" class="text-sm font-semibold text-slate-800">Custom Tokens:</h3>',
-    '        <button type="button" id="copyCustomTokensBtn" class="copy-tokens-btn inline-flex items-center gap-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 text-xs font-medium transition shadow-sm hidden"><i class="fas fa-copy"></i> Copy</button>',
+    '        <button type="button" id="copyCustomTokensBtn" class="copy-tokens-btn inline-flex items-center gap-1.5 rounded-lg bg-primary hover:bg-primary-dark text-white px-2.5 py-1 text-xs font-medium transition shadow-sm hidden"><i class="fas fa-copy"></i> Copy</button>',
     '      </div>',
     '      <ol id="customTokensList" class="list-decimal list-inside text-sm text-slate-700 space-y-1"></ol>',
     '    </div>',
@@ -265,6 +269,7 @@ function render() {
     '      <div id="tokensCompareResult" class="mt-6 hidden space-y-4"></div>',
     '    </div>',
     '  </div>',
+    '</div>',
     '</div>'
   ].join('\n');
 }

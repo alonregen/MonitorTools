@@ -1,11 +1,13 @@
 /**
- * SPA router and layout. Hash routes: #/home, #/nested, #/email, #/tokens, #/analyze
+ * SPA router and layout. Hash routes include #/home, #/checklist, #/shift-history, #/nested, etc.
  * Uses window.MonitorToolsViews (set by view scripts) so the app works from file:// and GitHub Pages.
  */
 (function () {
   var views = window.MonitorToolsViews || {};
   var routes = [
     { path: 'home', view: views.homeView, title: 'HOME Page' },
+    { path: 'checklist', view: views.checklistView, title: 'Shift Checklist' },
+    { path: 'shift-history', view: views.checklistView, title: 'Shift history' },
     { path: 'nested', view: views.nestedView, title: 'Monitor Query Builder' },
     { path: 'email', view: views.emailView, title: 'Email Generator' },
     { path: 'tokens', view: views.tokensView, title: 'Tokens Extractor' },
@@ -67,12 +69,16 @@ function renderRoute(routeName) {
   }
 
   try {
+    if (view.prepareRoute && typeof view.prepareRoute === 'function') {
+      view.prepareRoute({ routePath: name });
+    }
     const html = view.render();
     appContainer.innerHTML = html;
 
     if (view.mount && typeof view.mount === 'function') {
       view.mount(appContainer, {
-        copyOutput: (window.App && window.App.dom && window.App.dom.copyToClipboard) ? window.App.dom.copyToClipboard : function () { return Promise.resolve(false); }
+        copyOutput: (window.App && window.App.dom && window.App.dom.copyToClipboard) ? window.App.dom.copyToClipboard : function () { return Promise.resolve(false); },
+        routePath: name
       });
     }
   } catch (e) {

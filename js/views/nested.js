@@ -20,10 +20,10 @@
     return r.getElementById ? r.getElementById(id) : r.querySelector('[id="' + id + '"]');
   }
 
-  var inputCls  = 'w-full border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm';
-  var selectCls = 'border border-slate-300 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary text-sm bg-white';
+  var inputCls  = 'w-full border border-slate-200 rounded-lg px-3 py-2 text-slate-800 bg-white focus:ring-2 focus:ring-primary focus:border-primary font-mono text-sm';
+  var selectCls = 'border border-slate-200 rounded-lg px-3 py-2 text-slate-800 focus:ring-2 focus:ring-primary focus:border-primary text-sm bg-white';
   var labelCls  = 'block text-sm font-medium text-slate-700 mb-1';
-  var btnPrimary = 'inline-flex items-center gap-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 text-sm font-medium transition shadow-sm';
+  var btnPrimary = 'inline-flex items-center gap-2 rounded-lg bg-primary hover:bg-primary-dark text-white px-4 py-2 text-sm font-medium transition shadow-sm';
   var btnDanger  = 'rounded-lg bg-red-600 hover:bg-red-700 text-white px-3 py-2 text-sm font-medium transition';
 
   // ─── Aggregation Templates ───────────────────────────────────────
@@ -207,8 +207,14 @@
 
   function render() {
     return ''
+    + '<div class="max-w-6xl mx-auto">'
+    + '<div class="mb-6">'
+    + '<p class="mt-page-eyebrow">Search & alerts</p>'
+    + '<h1 class="mt-page-title mb-2">Monitor query builder</h1>'
+    + '<p class="mt-page-desc">OpenSearch nested JSON, alert conditions, aggregations, and optional AI assist.</p>'
+    + '</div>'
     + '<div class="relative">'
-    + '<button type="button" id="nestedRefreshBtn" class="absolute top-0 right-0 p-2.5 rounded-lg text-indigo-600 hover:text-indigo-700 hover:bg-indigo-50 transition font-medium" title="Reset all"><i class="fas fa-sync-alt text-base"></i></button>'
+    + '<button type="button" id="nestedRefreshBtn" class="absolute top-0 right-0 p-2.5 rounded-lg text-primary hover:bg-primary/10 transition font-medium" title="Reset all"><i class="fas fa-sync-alt text-base"></i></button>'
     + '<div class="mb-6 pr-10">'
     + '  <p class="' + labelCls + '">Select Query Type:</p>'
     + '  <div class="flex flex-wrap gap-4">'
@@ -586,6 +592,7 @@
     + '    </div>'
     + '  </div>'
 
+    + '</div>'
     + '</div>'
     + '</div>';
   }
