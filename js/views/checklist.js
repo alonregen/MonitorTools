@@ -151,15 +151,34 @@
     return !o || o.toUpperCase() === 'N/A';
   }
 
-  /** When no name was entered (or legacy "N/A"), show saved date and shift type in history UI. */
+  /** History list / modal title: date · shift type, then optional name at the end when present. */
   function shiftHistoryEntryDisplayTitle(entry) {
     if (!entry) return '';
-    if (!shiftHistoryOwnerMissing(entry.owner)) return String(entry.owner).trim();
     var slot = (entry.slotLabel && String(entry.slotLabel).trim()) ? String(entry.slotLabel).trim() : 'Shift not selected';
     var when = new Date(entry.createdAt);
-    if (!Number.isFinite(when.getTime())) return slot;
-    var dateStr = when.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
-    return dateStr + ' · ' + slot;
+    var dateStr = 'Unknown date';
+    if (Number.isFinite(when.getTime())) {
+      dateStr = when.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    }
+    var parts = [dateStr, slot];
+    if (!shiftHistoryOwnerMissing(entry.owner)) {
+      parts.push(String(entry.owner).trim());
+    }
+    return parts.join(' · ');
+  }
+
+  /** True when the saved snapshot includes any item note (shown as "Handover note" in the viewer). */
+  function shiftHistoryEntryHasHandoverNote(entry) {
+    if (!entry || !Array.isArray(entry.sections)) return false;
+    for (var si = 0; si < entry.sections.length; si += 1) {
+      var sec = entry.sections[si];
+      if (!sec || !Array.isArray(sec.items)) continue;
+      for (var ii = 0; ii < sec.items.length; ii += 1) {
+        var it = sec.items[ii];
+        if (it && typeof it.note === 'string' && it.note.trim()) return true;
+      }
+    }
+    return false;
   }
 
   function getItemByKey(key) {
@@ -1110,13 +1129,11 @@
     var title = document.createElement('h1');
     title.id = 'shiftHistoryViewTitle';
     title.className = 'shift-history-view-heading';
-    title.textContent = shiftHistoryEntryDisplayTitle(entry);
+    title.textContent = (shiftHistoryEntryHasHandoverNote(entry) ? '❗ ' : '') + shiftHistoryEntryDisplayTitle(entry);
     var meta = document.createElement('p');
     meta.className = 'shift-history-view-meta';
-    var slotMeta = (entry.slotLabel && String(entry.slotLabel).trim()) ? String(entry.slotLabel).trim() + ' · ' : '';
-    meta.textContent = shiftHistoryOwnerMissing(entry.owner)
-      ? new Date(entry.createdAt).toLocaleString()
-      : slotMeta + new Date(entry.createdAt).toLocaleString();
+    var savedAt = new Date(entry.createdAt);
+    meta.textContent = Number.isFinite(savedAt.getTime()) ? savedAt.toLocaleString() : '';
     headerLeft.appendChild(eyebrow);
     headerLeft.appendChild(title);
     headerLeft.appendChild(meta);
@@ -1288,9 +1305,8 @@
       ? history.map(function (entry) {
         return ''
           + '<article class="shift-history-card">'
-          + '  <div class="flex flex-wrap items-center justify-between gap-2">'
-          + '    <p class="text-sm font-semibold text-slate-800">' + escapeHtml(shiftHistoryEntryDisplayTitle(entry)) + '</p>'
-          + '    <p class="text-xs text-slate-500">' + escapeHtml(new Date(entry.createdAt).toLocaleString()) + '</p>'
+          + '  <div class="flex flex-wrap items-center gap-2">'
+          + '    <p class="text-sm font-semibold text-slate-800">' + (shiftHistoryEntryHasHandoverNote(entry) ? '❗ ' : '') + escapeHtml(shiftHistoryEntryDisplayTitle(entry)) + '</p>'
           + '  </div>'
           + '  <p class="text-sm text-slate-600 mt-1">Completion: ' + entry.checked + '/' + entry.total + '</p>'
           + '  <div class="flex flex-wrap gap-2 mt-3">'
@@ -1446,7 +1462,6 @@
     var cheer = getCheer(progress);
     var meta = state.__meta || {};
     var owner = meta.shiftOwner || '';
-    var doneAll = progress.total > 0 && progress.checked === progress.total;
     var sendDisabled = emailSendState.status === 'sending' ? 'disabled' : '';
     var sendLabel = emailSendState.status === 'sending'
       ? '<i class="fas fa-spinner fa-spin"></i> Sending...'
@@ -1458,15 +1473,6 @@
       + '    <button type="button" data-action="send-email" ' + sendDisabled + ' class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white hover:bg-primary-dark transition font-medium">' + sendLabel + '</button>'
       + '  </div>'
       + '</div>';
-    var exportActions = doneAll
-      ? '<div class="mt-4 pt-4 border-t border-slate-200/80">'
-        + '<p class="text-sm font-semibold text-slate-900 mb-2">All done — export PDF or review history below</p>'
-        + '<div class="flex flex-wrap gap-2">'
-        + '<button type="button" data-action="export-pdf" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-700 text-white hover:bg-slate-800 transition font-medium"><i class="fas fa-file-pdf"></i> Export PDF</button>'
-        + '</div>'
-        + renderHistoryPanel()
-        + '</div>'
-      : '';
     var celebration = progress.total > 0 && progress.checked === progress.total
       ? '<div class="shift-checklist-celebrate mt-3">🥳 You crushed this shift checklist!</div>'
       : '';
@@ -1502,7 +1508,6 @@
       + shiftCard
       + progressCard
       + '  </div>'
-      + exportActions
       + '</div>';
   }
 
