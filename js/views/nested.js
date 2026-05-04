@@ -926,6 +926,22 @@
     if (show === 'ai') initAiSection(container);
   }
 
+  /** Keep Load / Generate buttons in sync with global aiPlanner state (e.g. after remount). */
+  function syncAiUiToPlanner(r, planner) {
+    if (!planner) return;
+    var loadBtn = byId('aiLoadModelBtn', r);
+    var genBtn = byId('aiGenerateBtn', r);
+    var genDslBtn = byId('aiGenerateDslBtn', r);
+    var st = planner.getStatus();
+    var hideLoad = st === 'ready' || st === 'generating';
+    var canGenerate = st === 'ready';
+    if (loadBtn) loadBtn.style.display = hideLoad ? 'none' : '';
+    if (genBtn) genBtn.disabled = !canGenerate;
+    if (genDslBtn) genDslBtn.disabled = !canGenerate;
+    if (canGenerate) updateAiStatusBadge(r, 'ready', 'Ready');
+    else if (st === 'generating') updateAiStatusBadge(r, 'generating', 'Generating...');
+  }
+
   function initAiSection(container) {
     var r = root(container);
     var planner = window.App && window.App.aiPlanner;
@@ -934,19 +950,17 @@
     var noGpu   = byId('aiNoWebGPU', r);
     var loadBtn = byId('aiLoadModelBtn', r);
     var genBtn  = byId('aiGenerateBtn', r);
+    var genDslBtn = byId('aiGenerateDslBtn', r);
 
     if (!planner.checkWebGPUSupport()) {
       if (noGpu) noGpu.classList.remove('hidden');
       if (loadBtn) loadBtn.disabled = true;
       if (genBtn) genBtn.disabled = true;
+      if (genDslBtn) genDslBtn.disabled = true;
       return;
     }
 
-    if (planner.getStatus() === 'ready') {
-      if (loadBtn) loadBtn.style.display = 'none';
-      if (genBtn) genBtn.disabled = false;
-      updateAiStatusBadge(r, 'ready', 'Ready');
-    }
+    syncAiUiToPlanner(r, planner);
   }
 
   function updateAiStatusBadge(r, state, text) {
@@ -1312,16 +1326,14 @@
             updateAiStatusBadge(r, 'downloading', 'Downloading ' + pct + '%');
           }
         }).then(function () {
-          updateAiStatusBadge(r, 'ready', 'Ready');
-          loadBtn.style.display = 'none';
           if (progressWrap) progressWrap.classList.add('hidden');
-          if (genBtn) genBtn.disabled = false;
-          if (genDslBtn) genDslBtn.disabled = false;
+          syncAiUiToPlanner(r, planner);
         }).catch(function (err) {
           updateAiStatusBadge(r, 'error', 'Error: ' + (err.message || err));
           loadBtn.disabled = false;
           loadBtn.innerHTML = '<i class="fas fa-download"></i> Retry Load';
           if (progressWrap) progressWrap.classList.add('hidden');
+          syncAiUiToPlanner(r, planner);
         });
       });
     }
@@ -1338,6 +1350,10 @@
       genBtn.addEventListener('click', function () {
         var userRequest = requestEl ? requestEl.value.trim() : '';
         if (!userRequest) return;
+        if (planner.getStatus() !== 'ready') {
+          showAiError(r, 'Model is not ready yet. Click "Load AI Model" first.');
+          return;
+        }
 
         genBtn.disabled = true;
         genBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
@@ -1371,6 +1387,10 @@
       genDslBtn.addEventListener('click', function () {
         var userRequest = requestEl ? requestEl.value.trim() : '';
         if (!userRequest) return;
+        if (planner.getStatus() !== 'ready') {
+          showAiError(r, 'Model is not ready yet. Click "Load AI Model" first.');
+          return;
+        }
 
         genDslBtn.disabled = true;
         genDslBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
@@ -1464,6 +1484,8 @@
         }
       });
     }
+
+    syncAiUiToPlanner(r, planner);
   }
 
   var lastAiPlan = null;

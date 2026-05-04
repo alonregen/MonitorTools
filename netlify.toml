@@ -11,7 +11,7 @@
 # See scripts/inject-local-env.mjs.
 
 [build]
-  command = "node scripts/inject-local-env.mjs --ci"
+  command = "npm ci && npm run build:css && node scripts/inject-local-env.mjs --ci"
   publish = "."
 
 # Whole-site HTTP Basic Auth via netlify/edge-functions/site-gate.js (hash routes cannot be gated alone).

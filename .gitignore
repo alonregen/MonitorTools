@@ -18,6 +18,9 @@ npm-debug.log*
 # Netlify local link state (optional)
 .netlify/
 
+# Tailwind build output (run: npm run build:css)
+css/tailwind.css
+
 # Build/output (if you add any later)
 dist/
 build/

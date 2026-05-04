@@ -201,7 +201,7 @@ The checklist `Send Email` button can send directly from the page (no mail clien
 ### Local secrets (not committed)
 
 1. Copy `.env.local.example` to `.env.local` and set `WEB3FORMS_ACCESS_KEY` (and optionally `SHIFT_HISTORY_PASSWORD`).
-2. Run `npm run local-config` (this also runs automatically before `npm run start` / `npm run serve`). It writes `js/config.local.js`, which is gitignored.
+2. Run `npm run local-config`, or use `npm run start` / `npm run serve` (they run `npm run build:css` then inject env via `prestart` / `preserve`). That writes `js/config.local.js`, which is gitignored. Tailwind output goes to `css/tailwind.css` (gitignored; CI runs `npm run build:css` before deploy).
 3. **Commit:** `.env.local.example`, `scripts/inject-local-env.mjs`, and `.gitignore` entries — never `.env.local` or `js/config.local.js`.
 
 Note:

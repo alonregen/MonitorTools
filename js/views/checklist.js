@@ -17,6 +17,8 @@
   var emailSendState = { status: 'idle', message: '' };
   var checklistToastTimer = null;
   var historyViewKeydownHandler = null;
+  /** After unlock without `MONITOR_TOOLS_SHIFT_HISTORY_PASSWORD`, holds the typed passphrase for encrypt/re-save until Lock. */
+  var sessionHistoryPassword = '';
   /** When shift history is encrypted, canonical list for merge/persist (not shown in DevTools `state` while locked). */
   var historyPlainShadow = [];
   /** Resolves after encrypted history is decrypted into `historyPlainShadow` (or immediately if not needed). */
@@ -264,7 +266,7 @@
     cleaned.__meta.shiftOwner = typeof meta.shiftOwner === 'string' ? meta.shiftOwner : '';
     cleaned.__meta.shiftSlot = normalizeShiftSlot(meta.shiftSlot);
     cleaned.__meta.shiftHistory = sanitizeShiftHistory(meta.shiftHistory);
-    if (!usesCryptoForHistory() && meta.shiftHistoryEnc) {
+    if (!historyEncryptActive() && meta.shiftHistoryEnc) {
       cleaned.__meta.shiftHistoryEnc = meta.shiftHistoryEnc;
     }
     copyChecklistEntries(srcState, cleaned);
@@ -299,6 +301,8 @@
       Object.keys(defaults).forEach(function (key) {
         if (key === '__meta') {
           if (pass && encFromDisk && cryptoOk) {
+            defaults.__meta = { shiftOwner: shiftOwner, shiftSlot: shiftSlot, shiftHistory: [], shiftHistoryEnc: encFromDisk };
+          } else if (!pass && encFromDisk && cryptoOk) {
             defaults.__meta = { shiftOwner: shiftOwner, shiftSlot: shiftSlot, shiftHistory: [], shiftHistoryEnc: encFromDisk };
           } else if (pass && !encFromDisk && legacyPlain.length && cryptoOk) {
             defaults.__meta = { shiftOwner: shiftOwner, shiftSlot: shiftSlot, shiftHistory: legacyPlain, shiftHistoryEnc: null };
@@ -364,6 +368,25 @@
 
   function usesCryptoForHistory() {
     return !!getHistoryPassword() && usesWebCrypto();
+  }
+
+  function effectiveHistoryPassword() {
+    var g = getHistoryPassword();
+    if (g) return g;
+    if (typeof sessionHistoryPassword === 'string' && sessionHistoryPassword) return sessionHistoryPassword;
+    return '';
+  }
+
+  /** Encrypted persist path (global password and/or session passphrase after typed unlock). */
+  function historyEncryptActive() {
+    return usesWebCrypto() && (!!getHistoryPassword() || !!sessionHistoryPassword);
+  }
+
+  /** Encrypted history list lives in `historyPlainShadow` when this is true. */
+  function historyDataInShadow() {
+    if (!usesWebCrypto()) return false;
+    if (historyEncryptActive()) return true;
+    return !!(historyUnlocked && parseShiftHistoryEnc(state.__meta && state.__meta.shiftHistoryEnc));
   }
 
   function parseShiftHistoryEnc(raw) {
@@ -639,9 +662,15 @@
   }
 
   function persistEncryptedSnapshot() {
-    var pass = getHistoryPassword();
+    var pass = effectiveHistoryPassword();
     var hist = sanitizeShiftHistory(historyPlainShadow || []);
+    var prevEncKeep = parseShiftHistoryEnc(state.__meta && state.__meta.shiftHistoryEnc);
     if (!hist.length) {
+      if (prevEncKeep && !historyUnlocked) {
+        var cleanedKeep = buildCleanedDiskObject(prevEncKeep);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(cleanedKeep));
+        return Promise.resolve();
+      }
       state.__meta = state.__meta || {};
       state.__meta.shiftHistoryEnc = null;
       if (!historyUnlocked) state.__meta.shiftHistory = [];
@@ -649,6 +678,9 @@
       emptyCleaned.__meta.shiftHistory = [];
       delete emptyCleaned.__meta.shiftHistoryEnc;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(emptyCleaned));
+      return Promise.resolve();
+    }
+    if (!pass) {
       return Promise.resolve();
     }
     var prevEnc = parseShiftHistoryEnc(state.__meta && state.__meta.shiftHistoryEnc);
@@ -662,7 +694,7 @@
   }
 
   function persistState() {
-    if (usesCryptoForHistory()) {
+    if (historyEncryptActive()) {
       persistChain = persistChain.then(function () {
         return persistEncryptedSnapshot();
       }).catch(function () {});
@@ -1155,7 +1187,7 @@
     function filter(arr) {
       return sanitizeShiftHistory((arr || []).filter(function (e) { return e.id !== id; }));
     }
-    if (usesCryptoForHistory()) {
+    if (historyDataInShadow()) {
       historyPlainShadow = filter(historyPlainShadow);
       state.__meta = state.__meta || {};
       if (historyUnlocked) state.__meta.shiftHistory = historyPlainShadow.slice();
@@ -1253,12 +1285,13 @@
   }
 
   function renderHistoryPanel() {
-    var hasPassword = !!getHistoryPassword();
+    var encBlob = parseShiftHistoryEnc(state.__meta && state.__meta.shiftHistoryEnc);
+    var hasUnlockPath = !!getHistoryPassword() || !!encBlob;
     var history = (state.__meta && state.__meta.shiftHistory) || [];
-    if (!hasPassword) {
+    if (!hasUnlockPath) {
       return ''
         + '<div class="shift-history-panel mt-4">'
-        + '  <p class="text-sm text-amber-700">History lock is not configured yet. Add <code>window.MONITOR_TOOLS_SHIFT_HISTORY_PASSWORD</code> to enable it.</p>'
+        + '  <p class="text-sm text-amber-700">No encrypted shift history in this browser yet. Use <strong>Import backup</strong> below with your team passphrase, or add <code>window.MONITOR_TOOLS_SHIFT_HISTORY_PASSWORD</code> (build inject / local config) to auto-enable encryption. A host login (e.g. Netlify Basic Auth) does not replace the history passphrase.</p>'
         + '</div>';
     }
     if (!historyUnlocked) {
@@ -1637,18 +1670,20 @@
 
   function mount(container, deps) {
     rootEl = container;
+    historyUnlocked = false;
+    historyUnlockError = '';
     if (deps && deps.routePath) {
       routePathForLayout = deps.routePath;
     }
     state = loadState();
     historyPlainShadow = [];
     historyHydrationPromise = Promise.resolve();
-    if (usesCryptoForHistory()) {
-      var enc = state.__meta && state.__meta.shiftHistoryEnc;
-      var legacy = (state.__meta && state.__meta.shiftHistory) || [];
-      if (enc) {
-        state.__meta.shiftHistory = [];
-        historyHydrationPromise = decryptShiftHistoryBlob(getHistoryPassword(), enc)
+    if (usesWebCrypto() && parseShiftHistoryEnc(state.__meta && state.__meta.shiftHistoryEnc)) {
+      var enc = state.__meta.shiftHistoryEnc;
+      state.__meta.shiftHistory = [];
+      var mountPass = getHistoryPassword();
+      if (mountPass) {
+        historyHydrationPromise = decryptShiftHistoryBlob(mountPass, enc)
           .then(function (arr) {
             historyPlainShadow = arr;
             if (historyUnlocked) state.__meta.shiftHistory = historyPlainShadow;
@@ -1656,8 +1691,14 @@
           .catch(function () {
             historyPlainShadow = [];
           });
-      } else if (legacy.length) {
-        historyPlainShadow = sanitizeShiftHistory(legacy);
+      } else {
+        historyPlainShadow = [];
+        historyHydrationPromise = Promise.resolve();
+      }
+    } else if (usesCryptoForHistory()) {
+      var legacy2 = (state.__meta && state.__meta.shiftHistory) || [];
+      if (legacy2.length) {
+        historyPlainShadow = sanitizeShiftHistory(legacy2);
         state.__meta.shiftHistory = [];
         state.__meta.shiftHistoryEnc = null;
         persistState();
@@ -1669,7 +1710,7 @@
     }
     rootEl.innerHTML = render();
 
-    if (isHistoryOnlyLayout() && getHistoryPassword() && !historyUnlocked) {
+    if (isHistoryOnlyLayout() && !historyUnlocked && (getHistoryPassword() || parseShiftHistoryEnc(state.__meta && state.__meta.shiftHistoryEnc))) {
       requestAnimationFrame(function () {
         if (!rootEl) return;
         var pwd = rootEl.querySelector('#shiftHistoryPasswordInput');
@@ -1780,9 +1821,13 @@
       var saveShiftBtn = target.closest('[data-action="save-shift"]');
       if (saveShiftBtn) {
         historyHydrationPromise.then(function () {
+          if (parseShiftHistoryEnc(state.__meta && state.__meta.shiftHistoryEnc) && !historyUnlocked && !historyEncryptActive()) {
+            showChecklistToast('error', 'Unlock shift history first (your passphrase), then save a snapshot.');
+            return;
+          }
           state.__meta = state.__meta || {};
           var snap = createShiftSnapshot();
-          if (usesCryptoForHistory()) {
+          if (historyEncryptActive() || (usesWebCrypto() && parseShiftHistoryEnc(state.__meta && state.__meta.shiftHistoryEnc))) {
             historyPlainShadow = sanitizeShiftHistory((historyPlainShadow || []).concat([snap]));
             if (historyUnlocked) state.__meta.shiftHistory = historyPlainShadow;
             else state.__meta.shiftHistory = [];
@@ -1800,27 +1845,34 @@
       if (unlockBtn) {
         var input = rootEl.querySelector('#shiftHistoryPasswordInput');
         var entered = input ? String(input.value || '').trim() : '';
-        var expected = getHistoryPassword();
-        if (!expected) {
-          historyUnlockError = 'History password not configured.';
+        if (!entered) {
+          historyUnlockError = 'Enter your history passphrase.';
           rootEl.innerHTML = render();
           return;
         }
         var encUnlock = state.__meta && state.__meta.shiftHistoryEnc;
-        if (encUnlock && usesCryptoForHistory()) {
+        if (encUnlock && usesWebCrypto()) {
           decryptShiftHistoryBlob(entered, encUnlock)
             .then(function (arr) {
               historyPlainShadow = arr;
               historyUnlocked = true;
               historyUnlockError = '';
+              if (!getHistoryPassword()) sessionHistoryPassword = entered;
               state.__meta = state.__meta || {};
               state.__meta.shiftHistory = historyPlainShadow;
               rootEl.innerHTML = render();
+              persistState();
             })
             .catch(function () {
               historyUnlockError = 'Wrong password.';
               rootEl.innerHTML = render();
             });
+          return;
+        }
+        var expected = getHistoryPassword();
+        if (!expected) {
+          historyUnlockError = 'No encrypted history to unlock. Import a backup or configure a history password.';
+          rootEl.innerHTML = render();
           return;
         }
         if (entered !== expected) {
@@ -1840,7 +1892,11 @@
       if (lockBtn) {
         historyUnlocked = false;
         historyUnlockError = '';
-        if (usesCryptoForHistory()) state.__meta.shiftHistory = [];
+        if (historyEncryptActive()) state.__meta.shiftHistory = [];
+        persistState();
+        persistChain = persistChain.then(function () {
+          sessionHistoryPassword = '';
+        });
         rootEl.innerHTML = render();
         return;
       }
