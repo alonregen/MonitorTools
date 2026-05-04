@@ -214,6 +214,21 @@ function collectAggregationBuckets(obj, out) {
   });
 }
 
+/** Total hits for UI/email: OpenSearch number, { value, relation }, or count of hits in this response. */
+function formatTotalHitsDisplay(logData, returnedHitsCount) {
+  var n = typeof returnedHitsCount === 'number' && !isNaN(returnedHitsCount) ? returnedHitsCount : 0;
+  var hitsObj = logData && logData.hits;
+  if (!hitsObj) return n > 0 ? String(n) : 'Not found';
+  var t = hitsObj.total;
+  if (typeof t === 'number' && !isNaN(t)) return String(t);
+  if (typeof t === 'string' && t.trim()) return t.trim();
+  if (t && typeof t === 'object' && t.value != null && !isNaN(Number(t.value))) {
+    var rel = t.relation && String(t.relation) !== 'eq' ? ' (' + t.relation + ')' : '';
+    return String(t.value) + rel;
+  }
+  return n > 0 ? String(n) + ' (in response)' : 'Not found';
+}
+
 function parseLogs(logs) {
   if (!logs || typeof logs !== 'string' || !logs.trim()) {
     return { hits: [], error: 'No logs provided. Paste your OpenSearch response (Get all hits for operation ID).' };
@@ -223,7 +238,12 @@ function parseLogs(logs) {
     const hits = logData.hits ? (logData.hits.hits || []) : [];
     const aggBuckets = [];
     if (logData.aggregations) collectAggregationBuckets(logData.aggregations, aggBuckets);
-    return { hits: hits, aggregationBuckets: aggBuckets, error: null };
+    return {
+      hits: hits,
+      aggregationBuckets: aggBuckets,
+      error: null,
+      totalHitsDisplay: formatTotalHitsDisplay(logData, hits.length)
+    };
   } catch (e) {
     var msg = (e && e.message) ? e.message : String(e);
     if (msg.indexOf('position') !== -1) {
@@ -1320,7 +1340,7 @@ function setupAiLogQaSection(logContext) {
     }
     updateStatus('Searching in logs…', true);
     btn.disabled = true;
-    resultDiv.classList.add('hidden');
+    if (resultDiv) resultDiv.classList.add('hidden');
     var userMsg = 'Log data:\n\n' + logContext + '\n\n---\n\nUser question: ' + q;
     aiPlanner.generateText(userMsg, AI_LOG_QA_SYSTEM).then(function (answer) {
       var text = (answer || '').trim();
@@ -1479,17 +1499,15 @@ function runAnalysis(container) {
 
   const hits = parseResult.hits;
   const aggregationBuckets = parseResult.aggregationBuckets || [];
-  const totalHitsPattern = /"hits":\s*{[^}]*"total":\s*(\d+)/;
-  const totalHitsMatch = logs.match(totalHitsPattern);
-  const totalHits = totalHitsMatch ? totalHitsMatch[1] : 'Not found';
+  const totalHits = parseResult.totalHitsDisplay || formatTotalHitsDisplay(null, hits.length);
 
-  const labelPattern = /"label":\s*"([^"]+)"/gi;
   const labelCounts = {};
-  hits.forEach(hit => {
-    const logEntry = JSON.stringify(hit._source);
-    let labelMatch;
-    while ((labelMatch = labelPattern.exec(logEntry)) !== null) {
-      const label = labelMatch[1];
+  hits.forEach(function (hit) {
+    var logEntry = JSON.stringify(hit._source || {});
+    var labelRe = /"label":\s*"([^"]+)"/g;
+    var labelMatch;
+    while ((labelMatch = labelRe.exec(logEntry)) !== null) {
+      var label = labelMatch[1];
       labelCounts[label] = (labelCounts[label] || 0) + 1;
     }
   });
@@ -1559,9 +1577,10 @@ function runAnalysis(container) {
   let occurrencesHtml = '';
   let occurrenceIndex = 0;
   const occurrences = [];
-  hits.forEach(hit => {
-    const source = hit._source;
-    if (source.level === 'error' || source.level === 'warning') {
+  hits.forEach(function (hit) {
+    var source = hit._source || {};
+    var lvl = (source.level || '').toLowerCase();
+    if (lvl === 'error' || lvl === 'warning') {
       occurrences.push(extractDetails(hit));
       occurrencesHtml += generateOccurrenceHtml(occurrenceIndex++, extractDetails(hit), hit);
     }
@@ -1629,6 +1648,8 @@ function runAnalysis(container) {
       }
     });
   }
+
+  setAnalyzeInputLocked(container, false);
 }
 
 function setAnalyzeInputLocked(container, locked) {

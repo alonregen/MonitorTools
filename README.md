@@ -150,6 +150,16 @@ The **Shift history** page calls `GET /api/shift-history-section-gate` to learn 
 
 **Limitation:** Plain shift snapshots in **browser `localStorage`** are still readable on the same origin without the section cookie (e.g. via DevTools). This feature protects normal use and **cloud** history at `/api/shift-history`; it is not DRM against a determined same-origin attacker.
 
+### Cloud shift history (Netlify Database)
+
+Saved shift **snapshots** are stored in **Netlify** (Postgres via Netlify Database), not in the git repository. To enable client sync:
+
+1. Link a **Netlify Database** to the site and run migrations from [`netlify/database/migrations/`](netlify/database/migrations/) (see Netlify docs for applying DB migrations).
+2. Set **`ENABLE_SHIFT_HISTORY_NETLIFY_DB=true`** in Netlify **build** environment variables so [`scripts/inject-local-env.mjs`](scripts/inject-local-env.mjs) sets `window.MONITOR_TOOLS_SHIFT_HISTORY_NETLIFY_DB` at build time.
+3. The app calls same-origin **`GET` / `POST /api/shift-history`** ([`netlify/functions/shift-history.mjs`](netlify/functions/shift-history.mjs)): GET merges remote rows with the browser copy; POST stores each new snapshot after you save a shift.
+
+GitHub Actions secrets do not hold shift rows; cloud copies live only on Netlify when this is configured.
+
 ### Shift history password vs Basic Auth
 
 - **Basic Auth:** Stops anonymous visitors from loading HTML, JS, or assets. Credentials never belong in git; set them only in Netlify.
@@ -180,7 +190,7 @@ The checklist history panel supports a browser-side password gate for convenienc
   - `window.MONITOR_TOOLS_SHIFT_HISTORY_PASSWORD = "your-password"`
   - or `window.__MONITOR_TOOLS_CONFIG__ = { shiftHistoryPassword: "your-password" }`
 - If neither is set **and** there is no encrypted history blob in `localStorage` yet, shift history still works in **plain** mode: the Shift history page lists snapshots from this browser (and cloud sync when `MONITOR_TOOLS_SHIFT_HISTORY_NETLIFY_DB` is enabled) without a passphrase. Optional encryption (password and/or encrypted-at-rest blob) is for teams that want that extra step.
-- History is stored in browser `localStorage` and automatically trimmed to the latest 6 snapshots.
+- History is stored in browser `localStorage` and trimmed to the latest 6 snapshots when cloud sync is off; with Netlify Database sync enabled, the client keeps the merged list without that 6-item cap.
 - When a password is set and the browser supports **Web Crypto**, those snapshots are stored **encrypted at rest** (PBKDF2 + AES-GCM). The checklist UI still unlocks with the same password; while locked, the decrypted list is not kept on the in-memory `state` object (only an encrypted blob is written to `localStorage`).
 
 Important:
@@ -188,17 +198,7 @@ Important:
 - **GitHub Actions deploy (default):** the workflow does **not** write `SHIFT_HISTORY_PASSWORD` into `js/config.local.js`, so that secret is **not** exposed on the public site—users unlock history by **typing** the password in the UI.
 - For real access control, use a backend authentication flow, or a host-level gate such as **HTTP Basic Auth on Netlify** (see [Deploy on Netlify](#deploy-on-netlify-optional)).
 
-### Encrypted file backup (safe to commit to git)
-
-Checklist data normally lives only in the browser (`localStorage`) and is **not** in the repository. If you want a **copy in git** without readable secrets:
-
-1. On the **Shift checklist** (or **Shift history**) page, use **Export backup** under *Encrypted backup (git-safe)*.
-2. **Password behavior:** If `SHIFT_HISTORY_PASSWORD` is present in the loaded app (from local `js/config.local.js` via `npm run local-config`, or from CI only if you set `INJECT_SHIFT_HISTORY_PASSWORD_IN_PAGES=true`), export uses that **same shift-history password** after a confirm dialog—no separate “file password.” If no password is loaded in the browser (typical public GitHub Pages build), export **asks you for a password** (twice to confirm); use the same value your team uses for shift history so imports stay consistent.
-3. Commit only the downloaded `monitor-tools-checklist-backup-*.enc.json` file. It contains **ciphertext** (`kind`, `v`, `salt`, `iv`, `ct`)—there is no usable checklist data in git without that password.
-4. **Import** tries the configured shift-history password first when it exists; otherwise it prompts. Wrong password or a file encrypted with a different passphrase falls back to a prompt (when configured) or shows an error.
-5. **Do not** commit `.env.local`, `js/config.local.js`, or any password. **Repository secrets** (GitHub Actions) do **not** automatically encrypt in the browser: the static app never sees `SHIFT_HISTORY_PASSWORD` unless it is written into shipped JS (local dev) or you opt into the inject flag (not recommended for public sites).
-
-The live **HTML/JS** of the site in git remains public; this feature only protects **backup files** you choose to add. Anyone can still fork the repo and see the app code.
+For **cloud copies** of saved shifts on Netlify, see **Cloud shift history (Netlify Database)** under [Deploy on Netlify](#deploy-on-netlify-optional).
 
 ## Shift Checklist Auto Email (Web3Forms)
 

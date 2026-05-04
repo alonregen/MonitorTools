@@ -11,7 +11,6 @@
   var state = {};
   var onInputHandler = null;
   var onClickHandler = null;
-  var onBackupFileChange = null;
   var historyUnlocked = false;
   var historyUnlockError = '';
   var emailSendState = { status: 'idle', message: '' };
@@ -28,9 +27,6 @@
   var pbkdfKeyPromises = {};
   var PBKDF2_ITERATIONS = 150000;
   var HISTORY_ENC_VERSION = 1;
-  /** Full localStorage payload encrypted for optional git commit (separate from in-browser history crypto). */
-  var FILE_BACKUP_KIND = 'monitor_tools_checklist_local_v1';
-  var FILE_BACKUP_VERSION = 1;
   /** Set before render via prepareRoute / mount so `#/shift-history` can show history without full checklist UI. */
   var routePathForLayout = 'checklist';
   /** Server session for optional Netlify `/api/shift-history-section-gate` (secrets stay on server). */
@@ -148,6 +144,22 @@
     if (slot === 'evening') return 'Evening (15:00–23:00)';
     if (slot === 'night') return 'Night (23:00–07:00)';
     return '';
+  }
+
+  function shiftHistoryOwnerMissing(owner) {
+    var o = typeof owner === 'string' ? owner.trim() : '';
+    return !o || o.toUpperCase() === 'N/A';
+  }
+
+  /** When no name was entered (or legacy "N/A"), show saved date and shift type in history UI. */
+  function shiftHistoryEntryDisplayTitle(entry) {
+    if (!entry) return '';
+    if (!shiftHistoryOwnerMissing(entry.owner)) return String(entry.owner).trim();
+    var slot = (entry.slotLabel && String(entry.slotLabel).trim()) ? String(entry.slotLabel).trim() : 'Shift not selected';
+    var when = new Date(entry.createdAt);
+    if (!Number.isFinite(when.getTime())) return slot;
+    var dateStr = when.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' });
+    return dateStr + ' · ' + slot;
   }
 
   function getItemByKey(key) {
@@ -477,178 +489,6 @@
     });
   }
 
-  function encryptChecklistFileBackup(password, utf8Payload) {
-    var saltBytes = randomBytes(16);
-    var iv = randomBytes(12);
-    return getKeyForSalt(password, saltBytes).then(function (key) {
-      var te = new TextEncoder();
-      return window.crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, te.encode(utf8Payload)).then(function (ctBuf) {
-        return {
-          kind: FILE_BACKUP_KIND,
-          v: FILE_BACKUP_VERSION,
-          salt: bytesToB64(saltBytes),
-          iv: bytesToB64(iv),
-          ct: bytesToB64(new Uint8Array(ctBuf))
-        };
-      });
-    });
-  }
-
-  function parseFileBackupEnvelope(obj) {
-    if (!obj || typeof obj !== 'object') return null;
-    if (obj.kind !== FILE_BACKUP_KIND || Number(obj.v) !== FILE_BACKUP_VERSION) return null;
-    if (typeof obj.salt !== 'string' || typeof obj.iv !== 'string' || typeof obj.ct !== 'string') return null;
-    if (!obj.salt || !obj.iv || !obj.ct) return null;
-    return { salt: obj.salt, iv: obj.iv, ct: obj.ct };
-  }
-
-  function decryptChecklistFileBackup(password, enc) {
-    var saltBytes = b64ToBytes(enc.salt);
-    var iv = b64ToBytes(enc.iv);
-    var ct = b64ToBytes(enc.ct);
-    return getKeyForSalt(password, saltBytes).then(function (key) {
-      return window.crypto.subtle.decrypt({ name: 'AES-GCM', iv: iv }, key, ct).then(function (plainBuf) {
-        return new TextDecoder().decode(plainBuf);
-      });
-    });
-  }
-
-  function validateImportedStorageJson(plaintext) {
-    var p = JSON.parse(plaintext);
-    if (!p || typeof p !== 'object') return false;
-    if (!p.__meta || typeof p.__meta !== 'object') return false;
-    return true;
-  }
-
-  function exportEncryptedChecklistBackup() {
-    if (!usesWebCrypto()) {
-      showChecklistToast('error', 'This browser does not support Web Crypto.');
-      return;
-    }
-    function runExportWithPassword(pw) {
-      var raw = localStorage.getItem(STORAGE_KEY) || '{}';
-      return encryptChecklistFileBackup(pw, raw).then(function (obj) {
-        var json = JSON.stringify(obj, null, 2);
-        var blob = new Blob([json], { type: 'application/json' });
-        var url = URL.createObjectURL(blob);
-        var a = document.createElement('a');
-        a.href = url;
-        a.download = 'monitor-tools-checklist-backup-' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '.enc.json';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-        showChecklistToast('success', 'Encrypted backup downloaded. Safe to commit—keep the password private.');
-      });
-    }
-    var configured = getHistoryPassword();
-    if (configured) {
-      if (!window.confirm('Export backup file using your configured shift-history password? (Same secret as history unlock / local config—never commit the password or .env.local.)')) {
-        return;
-      }
-      runExportWithPassword(configured).catch(function () {
-        showChecklistToast('error', 'Could not encrypt backup.');
-      });
-      return;
-    }
-    var p1 = window.prompt('Choose a password for this file (needed to import later; do not commit the password to git):');
-    if (!p1) return;
-    var p2 = window.prompt('Confirm password:');
-    if (p1 !== p2) {
-      showChecklistToast('error', 'Passwords do not match.');
-      return;
-    }
-    runExportWithPassword(p1).catch(function () {
-      showChecklistToast('error', 'Could not encrypt backup.');
-    });
-  }
-
-  function triggerEncryptedBackupImportPicker() {
-    if (!usesWebCrypto()) {
-      showChecklistToast('error', 'This browser does not support Web Crypto.');
-      return;
-    }
-    var inp = rootEl && rootEl.querySelector('#shiftChecklistEncImport');
-    if (inp) inp.click();
-  }
-
-  function applyDecryptedChecklistBackup(plaintext) {
-    if (!validateImportedStorageJson(plaintext)) {
-      showChecklistToast('error', 'Decrypted data is not a valid checklist backup.');
-      return Promise.reject(new Error('invalid backup'));
-    }
-    localStorage.setItem(STORAGE_KEY, plaintext);
-    showChecklistToast('success', 'Backup restored. Reloading…');
-    setTimeout(function () { window.location.reload(); }, 650);
-    return Promise.resolve();
-  }
-
-  function handleEncryptedBackupFileSelected(files) {
-    var f = files && files[0];
-    if (!f) return;
-    if (!usesWebCrypto()) return;
-    var reader = new FileReader();
-    reader.onload = function () {
-      try {
-        var data = JSON.parse(reader.result);
-        var env = parseFileBackupEnvelope(data);
-        if (!env) {
-          showChecklistToast('error', 'Not a valid Monitor Tools encrypted backup.');
-          return;
-        }
-        function tryPassword(pwd) {
-          return decryptChecklistFileBackup(pwd, env).then(function (plaintext) {
-            return applyDecryptedChecklistBackup(plaintext);
-          });
-        }
-        function promptAndImport() {
-          var pwd = window.prompt('Password for this backup file:');
-          if (!pwd) return;
-          tryPassword(pwd).catch(function () {
-            showChecklistToast('error', 'Wrong password or corrupted file.');
-          });
-        }
-        var configured = getHistoryPassword();
-        if (configured) {
-          tryPassword(configured).catch(function () {
-            promptAndImport();
-          });
-          return;
-        }
-        promptAndImport();
-      } catch (e1) {
-        showChecklistToast('error', 'Could not read backup file.');
-      }
-    };
-    reader.onerror = function () {
-      showChecklistToast('error', 'Could not read backup file.');
-    };
-    reader.readAsText(f, 'utf8');
-  }
-
-  function renderEncryptedBackupTools() {
-    if (!usesWebCrypto()) {
-      return ''
-        + '<div class="mt-3 pt-3 border-t border-slate-200/80 shift-checklist-backup-tools">'
-        + '  <p class="text-xs font-semibold text-slate-500 mb-1">Encrypted backup (git-safe)</p>'
-        + '  <p class="text-xs text-amber-800">Use a current browser with Web Crypto to export or import encrypted backups.</p>'
-        + '</div>';
-    }
-    var backupDesc = getHistoryPassword()
-      ? 'Exports use the <strong>same password as shift history</strong> (from your local <code class="text-xs bg-slate-100 px-1 py-0.5 rounded">config.local.js</code> / env, or an injected build). Encrypts this device&rsquo;s checklist <code class="text-xs bg-slate-100 px-1 py-0.5 rounded">localStorage</code> (PBKDF2 + AES-GCM). Commit only the <code class="text-xs bg-slate-100 px-1 py-0.5 rounded">.enc.json</code> file—never <code class="text-xs bg-slate-100 px-1 py-0.5 rounded">.env.local</code> or the password. Do not enable password embed in public Pages unless you accept that risk (see README).'
-      : 'No shift-history password is loaded in this browser—export will <strong>ask you for a password</strong> (use the same value you use to unlock history). GitHub Actions <strong>secrets alone</strong> do not reach the client unless you opt into inject (README). Encrypts <code class="text-xs bg-slate-100 px-1 py-0.5 rounded">localStorage</code> (PBKDF2 + AES-GCM). Commit only the <code class="text-xs bg-slate-100 px-1 py-0.5 rounded">.enc.json</code> file.';
-    return ''
-      + '<div class="mt-3 pt-3 border-t border-slate-200/80 shift-checklist-backup-tools">'
-      + '  <p class="text-xs font-semibold text-slate-500 mb-1">Encrypted backup (git-safe)</p>'
-      + '  <p class="text-xs text-slate-500 mb-2 leading-relaxed">' + backupDesc + '</p>'
-      + '  <div class="flex flex-wrap gap-2">'
-      + '    <button type="button" data-action="export-encrypted-backup" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 text-white hover:bg-slate-900 transition text-sm font-medium"><i class="fas fa-file-export"></i> Export backup</button>'
-      + '    <button type="button" data-action="import-encrypted-backup-trigger" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-slate-200 text-slate-800 hover:bg-slate-50 transition text-sm font-medium"><i class="fas fa-file-import"></i> Import backup…</button>'
-      + '    <input type="file" id="shiftChecklistEncImport" class="hidden" accept="application/json,.json" tabindex="-1" aria-hidden="true">'
-      + '  </div>'
-      + '</div>';
-  }
-
   function buildCleanedDiskObject(shiftHistoryEncVal) {
     var meta = state.__meta || {};
     var cleaned = {
@@ -934,10 +774,10 @@
   function buildChecklistSummaryText() {
     var lines = [];
     var meta = state.__meta || {};
-    var owner = (meta.shiftOwner || '').trim() || 'N/A';
+    var owner = (meta.shiftOwner || '').trim();
     var slotLine = shiftSlotExportLabel(normalizeShiftSlot(meta.shiftSlot));
     lines.push('Shift Checklist Summary');
-    lines.push('Your name: ' + owner);
+    lines.push('Your name: ' + (owner || 'Not entered'));
     lines.push('Shift: ' + (slotLine || '(not selected)'));
     lines.push('Generated: ' + new Date().toLocaleString());
     lines.push('');
@@ -1012,12 +852,12 @@
     var progress = getProgressSnapshot();
     var createdAt = Date.now();
     var metaSnap = state.__meta || {};
-    var owner = (metaSnap.shiftOwner || '').trim() || 'N/A';
+    var owner = (metaSnap.shiftOwner || '').trim();
     var slotSnap = shiftSlotExportLabel(normalizeShiftSlot(metaSnap.shiftSlot));
     var sections = buildSnapshotSections();
     var lines = [
       'Shift Checklist Snapshot',
-      'Your name: ' + owner,
+      'Your name: ' + (owner || 'Not entered'),
       'Shift: ' + (slotSnap || '(not selected)'),
       'Saved: ' + new Date(createdAt).toLocaleString(),
       'Completion: ' + progress.checked + '/' + progress.total,
@@ -1270,11 +1110,13 @@
     var title = document.createElement('h1');
     title.id = 'shiftHistoryViewTitle';
     title.className = 'shift-history-view-heading';
-    title.textContent = entry.owner || 'N/A';
+    title.textContent = shiftHistoryEntryDisplayTitle(entry);
     var meta = document.createElement('p');
     meta.className = 'shift-history-view-meta';
     var slotMeta = (entry.slotLabel && String(entry.slotLabel).trim()) ? String(entry.slotLabel).trim() + ' · ' : '';
-    meta.textContent = slotMeta + new Date(entry.createdAt).toLocaleString();
+    meta.textContent = shiftHistoryOwnerMissing(entry.owner)
+      ? new Date(entry.createdAt).toLocaleString()
+      : slotMeta + new Date(entry.createdAt).toLocaleString();
     headerLeft.appendChild(eyebrow);
     headerLeft.appendChild(title);
     headerLeft.appendChild(meta);
@@ -1447,7 +1289,7 @@
         return ''
           + '<article class="shift-history-card">'
           + '  <div class="flex flex-wrap items-center justify-between gap-2">'
-          + '    <p class="text-sm font-semibold text-slate-800">' + escapeHtml(entry.owner || 'N/A') + '</p>'
+          + '    <p class="text-sm font-semibold text-slate-800">' + escapeHtml(shiftHistoryEntryDisplayTitle(entry)) + '</p>'
           + '    <p class="text-xs text-slate-500">' + escapeHtml(new Date(entry.createdAt).toLocaleString()) + '</p>'
           + '  </div>'
           + '  <p class="text-sm text-slate-600 mt-1">Completion: ' + entry.checked + '/' + entry.total + '</p>'
@@ -1615,7 +1457,6 @@
       + '    <button type="button" data-action="save-shift" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition font-medium"><i class="fas fa-floppy-disk"></i> Save to shift history</button>'
       + '    <button type="button" data-action="send-email" ' + sendDisabled + ' class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white hover:bg-primary-dark transition font-medium">' + sendLabel + '</button>'
       + '  </div>'
-      + '  <p class="text-xs text-slate-500 mt-2">View and export saved shifts on the <a href="#/shift-history" class="text-primary font-semibold hover:text-primary-dark">Shift history</a> page.</p>'
       + '</div>';
     var exportActions = doneAll
       ? '<div class="mt-4 pt-4 border-t border-slate-200/80">'
@@ -1638,7 +1479,6 @@
       + '    <input id="shiftChecklistYourName" type="text" data-meta-field="shiftOwner" value="' + escapeHtml(owner) + '" autocomplete="name" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-primary focus:border-primary">'
       + '  </div>'
       + sendRow
-      + renderEncryptedBackupTools()
       + '</div>';
     var progressCard = ''
       + '<div class="shift-checklist-meta-card rounded-2xl border border-slate-200/90 bg-white/70 p-4 sm:p-5 shadow-sm">'
@@ -1718,7 +1558,6 @@
       ? 'Unlock with your history password to view or export past saved shifts. Same encrypted storage as the full checklist.'
       : 'View or export past saved shifts stored in this browser'
         + (shiftHistoryNetlifyDbEnabled() ? ' (and merged with cloud history when sync is enabled).' : '.');
-    var backupBlock = shiftHistoryEncryptionInUse() ? renderEncryptedBackupTools() : '';
     var signOutBtn = (shiftHistorySectionGateState.gateEnabled && shiftHistorySectionGateState.authenticated)
       ? '<button type="button" data-action="shift-history-gate-logout" class="text-xs text-slate-500 hover:text-slate-700 font-semibold shrink-0">Sign out</button>'
       : '';
@@ -1733,7 +1572,6 @@
       + '  </div>'
       + '  <div class="rounded-3xl border border-slate-200 p-4 sm:p-5 bg-white">'
       + renderHistoryPanel()
-      + backupBlock
       + '    <p class="mt-4 pt-4 border-t border-slate-200/80 text-sm"><a href="#/checklist" class="text-primary font-semibold hover:text-primary-dark">← Full shift checklist</a></p>'
       + '  </div>'
       + '</div>';
@@ -1953,16 +1791,6 @@
     };
     rootEl.addEventListener('input', onInputHandler);
 
-    onBackupFileChange = function (event) {
-      var t = event.target;
-      if (!t || t.id !== 'shiftChecklistEncImport') return;
-      var files = t.files;
-      t.value = '';
-      if (!files || !files.length) return;
-      handleEncryptedBackupFileSelected(files);
-    };
-    rootEl.addEventListener('change', onBackupFileChange);
-
     onClickHandler = function (event) {
       var target = event.target;
       if (!target) return;
@@ -2070,18 +1898,6 @@
         return;
       }
 
-      var expEnc = target.closest('[data-action="export-encrypted-backup"]');
-      if (expEnc) {
-        exportEncryptedChecklistBackup();
-        return;
-      }
-
-      var impEnc = target.closest('[data-action="import-encrypted-backup-trigger"]');
-      if (impEnc) {
-        triggerEncryptedBackupImportPicker();
-        return;
-      }
-
       var saveShiftBtn = target.closest('[data-action="save-shift"]');
       if (saveShiftBtn) {
         historyHydrationPromise.then(function () {
@@ -2145,7 +1961,7 @@
         }
         var expected = getHistoryPassword();
         if (!expected) {
-          historyUnlockError = 'No encrypted history to unlock. Import a backup or configure a history password.';
+          historyUnlockError = 'No encrypted history to unlock. Configure a history password or use the passphrase for this device.';
           rootEl.innerHTML = render();
           return;
         }
@@ -2215,10 +2031,8 @@
     closeHistoryViewModal();
     dismissChecklistToast();
     if (rootEl && onInputHandler) rootEl.removeEventListener('input', onInputHandler);
-    if (rootEl && onBackupFileChange) rootEl.removeEventListener('change', onBackupFileChange);
     if (rootEl && onClickHandler) rootEl.removeEventListener('click', onClickHandler);
     onInputHandler = null;
-    onBackupFileChange = null;
     onClickHandler = null;
     rootEl = null;
     historyPlainShadow = [];
