@@ -5,6 +5,7 @@
  * CI:    pass --ci and set env WEB3FORMS_ACCESS_KEY (optional CHECKLIST_OWNER_EMAIL).
  *        Shift history password is NOT written in CI by default (so it never ships in public JS).
  *        Set INJECT_SHIFT_HISTORY_PASSWORD_IN_PAGES=true only if you accept that risk.
+ *        ENABLE_SHIFT_HISTORY_NETLIFY_DB — optional; "true"/"1" sets window.MONITOR_TOOLS_SHIFT_HISTORY_NETLIFY_DB (same-origin /api/shift-history on Netlify).
  */
 import fs from 'fs';
 import path from 'path';
@@ -37,13 +38,18 @@ function jsString(s) {
   return JSON.stringify(s == null ? '' : String(s));
 }
 
-function writeConfig(web3, pass, ownerEmail, sourceLabel) {
+function truthyEnvFlag(v) {
+  return v === 'true' || v === '1';
+}
+
+function writeConfig(web3, pass, ownerEmail, enableShiftHistoryNetlifyDb, sourceLabel) {
   var parts = [
     '/* ' + sourceLabel + ' — do not commit real keys to git */',
     '(function () {',
     '  if (' + jsString(web3) + ') window.MONITOR_TOOLS_WEB3FORMS_ACCESS_KEY = ' + jsString(web3) + ';',
     '  if (' + jsString(pass) + ') window.MONITOR_TOOLS_SHIFT_HISTORY_PASSWORD = ' + jsString(pass) + ';',
     '  if (' + jsString(ownerEmail) + ') window.MONITOR_TOOLS_CHECKLIST_OWNER_EMAIL = ' + jsString(ownerEmail) + ';',
+    '  if (' + (enableShiftHistoryNetlifyDb ? 'true' : 'false') + ') window.MONITOR_TOOLS_SHIFT_HISTORY_NETLIFY_DB = true;',
     '})();',
     ''
   ];
@@ -69,7 +75,8 @@ if (ciMode) {
   if (!web3 && !pass) {
     console.warn('CI mode: no WEB3FORMS_ACCESS_KEY in environment (and no embedded history password); writing stub where needed.');
   }
-  writeConfig(web3, pass, ownerEmail, 'CI / GitHub Actions');
+  var enableNetlifyDb = truthyEnvFlag(process.env.ENABLE_SHIFT_HISTORY_NETLIFY_DB || '');
+  writeConfig(web3, pass, ownerEmail, enableNetlifyDb, 'CI / GitHub Actions');
   process.exit(0);
 }
 
@@ -85,9 +92,11 @@ if (!fs.existsSync(envPath)) {
 }
 
 var env = parseEnv(fs.readFileSync(envPath, 'utf8'));
+var enableNetlifyDbLocal = truthyEnvFlag(env.ENABLE_SHIFT_HISTORY_NETLIFY_DB || '');
 writeConfig(
   env.WEB3FORMS_ACCESS_KEY || env.MONITOR_TOOLS_WEB3FORMS_ACCESS_KEY || '',
   env.SHIFT_HISTORY_PASSWORD || env.MONITOR_TOOLS_SHIFT_HISTORY_PASSWORD || '',
   env.CHECKLIST_OWNER_EMAIL || env.MONITOR_TOOLS_CHECKLIST_OWNER_EMAIL || '',
+  enableNetlifyDbLocal,
   'Generated from .env.local'
 );

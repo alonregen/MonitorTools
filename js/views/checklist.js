@@ -763,6 +763,85 @@
     return '';
   }
 
+  /** Netlify Database sync: set via build inject (ENABLE_SHIFT_HISTORY_NETLIFY_DB) or __MONITOR_TOOLS_CONFIG__. */
+  function shiftHistoryNetlifyDbEnabled() {
+    if (window.MONITOR_TOOLS_SHIFT_HISTORY_NETLIFY_DB === true) return true;
+    if (window.MONITOR_TOOLS_SHIFT_HISTORY_NETLIFY_DB === '1') return true;
+    var cfg = window.__MONITOR_TOOLS_CONFIG__ || {};
+    if (cfg.shiftHistoryNetlifyDb === true || cfg.shiftHistoryNetlifyDb === '1') return true;
+    return false;
+  }
+
+  function shiftHistoryApiPath() {
+    return '/api/shift-history';
+  }
+
+  /** Remote rows win on duplicate `id`. */
+  function mergeRemoteShiftHistory(remoteArr, localArr) {
+    var byId = {};
+    (localArr || []).forEach(function (entry) {
+      if (!entry || typeof entry !== 'object') return;
+      var id = typeof entry.id === 'string' ? entry.id : String(entry.createdAt || '');
+      if (!id) return;
+      byId[id] = entry;
+    });
+    (remoteArr || []).forEach(function (entry) {
+      if (!entry || typeof entry !== 'object') return;
+      var id = typeof entry.id === 'string' ? entry.id : String(entry.createdAt || '');
+      if (!id) return;
+      byId[id] = entry;
+    });
+    return Object.keys(byId).map(function (k) { return byId[k]; }).sort(function (a, b) {
+      return (Number(b.createdAt) || 0) - (Number(a.createdAt) || 0);
+    });
+  }
+
+  function maybeSyncShiftHistoryFromNetlifyDb() {
+    if (!shiftHistoryNetlifyDbEnabled() || !historyUnlocked) return Promise.resolve();
+    return fetch(shiftHistoryApiPath(), { method: 'GET', credentials: 'same-origin' })
+      .then(function (res) {
+        if (res.status === 401) {
+          showChecklistToast('error', 'Could not load cloud shift history: sign in to the site (HTTP Basic Auth), then try again.');
+          return null;
+        }
+        if (!res.ok) throw new Error('GET shift history failed');
+        return res.json();
+      })
+      .then(function (remote) {
+        if (!Array.isArray(remote)) return;
+        var local = historyDataInShadow() ? (historyPlainShadow || []) : ((state.__meta && state.__meta.shiftHistory) || []);
+        var merged = sanitizeShiftHistory(mergeRemoteShiftHistory(remote, local));
+        historyPlainShadow = merged.slice();
+        state.__meta = state.__meta || {};
+        if (historyEncryptActive() || (usesWebCrypto() && parseShiftHistoryEnc(state.__meta.shiftHistoryEnc))) {
+          state.__meta.shiftHistory = historyUnlocked ? merged.slice() : [];
+        } else {
+          state.__meta.shiftHistory = merged.slice();
+        }
+        persistState();
+        if (rootEl) rootEl.innerHTML = render();
+      })
+      .catch(function () {
+        showChecklistToast('error', 'Could not load cloud shift history. Showing local data only.');
+      });
+  }
+
+  function postShiftSnapshotToNetlifyDb(snap) {
+    if (!shiftHistoryNetlifyDbEnabled()) return;
+    fetch(shiftHistoryApiPath(), {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(snap)
+    })
+      .then(function (res) {
+        if (!res.ok) throw new Error('POST shift history failed');
+      })
+      .catch(function () {
+        showChecklistToast('error', 'Could not save this shift to cloud history. It is still saved in this browser.');
+      });
+  }
+
   function sanitizeShiftHistory(rawHistory) {
     if (!Array.isArray(rawHistory)) return [];
     var cleaned = rawHistory
@@ -783,7 +862,9 @@
       })
       .filter(Boolean)
       .sort(function (a, b) { return b.createdAt - a.createdAt; });
-    return cleaned.slice(0, HISTORY_LIMIT);
+    var cap = shiftHistoryNetlifyDbEnabled() ? null : HISTORY_LIMIT;
+    if (cap != null && cap > 0) return cleaned.slice(0, cap);
+    return cleaned;
   }
 
   function buildChecklistSummaryText() {
@@ -1326,7 +1407,7 @@
     return ''
       + '<div class="shift-history-panel mt-4">'
       + '  <div class="flex items-center justify-between gap-2">'
-      + '    <p class="text-sm font-semibold text-slate-900">Shift history (last ' + HISTORY_LIMIT + ')</p>'
+      + '    <p class="text-sm font-semibold text-slate-900">' + (shiftHistoryNetlifyDbEnabled() ? 'Shift history (cloud)' : ('Shift history (last ' + HISTORY_LIMIT + ')')) + '</p>'
       + '    <button type="button" data-action="lock-history" class="text-xs text-primary hover:text-primary-dark font-semibold">Lock</button>'
       + '  </div>'
       + '  <div class="mt-3 space-y-2">' + itemsHtml + '</div>'
@@ -1472,9 +1553,10 @@
     var sendRow = ''
       + '<div class="mt-3 pt-3 border-t border-slate-200/80">'
       + '  <div class="flex flex-wrap items-center gap-2">'
-      + '    <button type="button" data-action="save-shift" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition font-medium"><i class="fas fa-floppy-disk"></i> Save</button>'
+      + '    <button type="button" data-action="save-shift" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition font-medium"><i class="fas fa-floppy-disk"></i> Save to shift history</button>'
       + '    <button type="button" data-action="send-email" ' + sendDisabled + ' class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white hover:bg-primary-dark transition font-medium">' + sendLabel + '</button>'
       + '  </div>'
+      + '  <p class="text-xs text-slate-500 mt-2">View and export saved shifts on the <a href="#/shift-history" class="text-primary font-semibold hover:text-primary-dark">Shift history</a> page.</p>'
       + '</div>';
     var exportActions = doneAll
       ? '<div class="mt-4 pt-4 border-t border-slate-200/80">'
@@ -1835,8 +1917,17 @@
             state.__meta.shiftHistory = sanitizeShiftHistory(((state.__meta && state.__meta.shiftHistory) || []).concat([snap]));
           }
           persistState();
-          if (rootEl) rootEl.innerHTML = render();
-          showChecklistToast('success', 'Shift saved to history.');
+          var afterPersist = historyEncryptActive() ? persistChain : Promise.resolve();
+          afterPersist.then(function () {
+            postShiftSnapshotToNetlifyDb(snap);
+            if (isHistoryOnlyLayout()) {
+              if (rootEl) rootEl.innerHTML = render();
+              showChecklistToast('success', 'Shift saved to history.');
+            } else {
+              showChecklistToast('success', 'Shift saved to history.');
+              window.location.hash = '#/shift-history';
+            }
+          });
         });
         return;
       }
@@ -1862,6 +1953,7 @@
               state.__meta.shiftHistory = historyPlainShadow;
               rootEl.innerHTML = render();
               persistState();
+              maybeSyncShiftHistoryFromNetlifyDb();
             })
             .catch(function () {
               historyUnlockError = 'Wrong password.';
@@ -1885,6 +1977,7 @@
         state.__meta = state.__meta || {};
         state.__meta.shiftHistory = historyPlainShadow.slice();
         rootEl.innerHTML = render();
+        maybeSyncShiftHistoryFromNetlifyDb();
         return;
       }
 
