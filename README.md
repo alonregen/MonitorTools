@@ -168,7 +168,7 @@ The checklist history panel supports a browser-side password gate for convenienc
 - Set one of these globals before `js/views/checklist.js` loads:
   - `window.MONITOR_TOOLS_SHIFT_HISTORY_PASSWORD = "your-password"`
   - or `window.__MONITOR_TOOLS_CONFIG__ = { shiftHistoryPassword: "your-password" }`
-- If neither is set, history stays unavailable and a setup message is shown.
+- If neither is set **and** there is no encrypted history blob in `localStorage` yet, shift history still works in **plain** mode: the Shift history page lists snapshots from this browser (and cloud sync when `MONITOR_TOOLS_SHIFT_HISTORY_NETLIFY_DB` is enabled) without a passphrase. Optional encryption (password and/or encrypted-at-rest blob) is for teams that want that extra step.
 - History is stored in browser `localStorage` and automatically trimmed to the latest 6 snapshots.
 - When a password is set and the browser supports **Web Crypto**, those snapshots are stored **encrypted at rest** (PBKDF2 + AES-GCM). The checklist UI still unlocks with the same password; while locked, the decrypted list is not kept on the in-memory `state` object (only an encrypted blob is written to `localStorage`).
 

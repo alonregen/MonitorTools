@@ -740,6 +740,12 @@
     return cfg.trim();
   }
 
+  /** True when a global password is set or an encrypted history blob exists on disk (lock / passphrase UX applies). */
+  function shiftHistoryEncryptionInUse() {
+    if (getHistoryPassword()) return true;
+    return !!parseShiftHistoryEnc(state.__meta && state.__meta.shiftHistoryEnc);
+  }
+
   function getWeb3FormsAccessKey() {
     if (typeof window.MONITOR_TOOLS_WEB3FORMS_ACCESS_KEY === 'string' && window.MONITOR_TOOLS_WEB3FORMS_ACCESS_KEY.trim()) {
       return window.MONITOR_TOOLS_WEB3FORMS_ACCESS_KEY.trim();
@@ -1366,16 +1372,8 @@
   }
 
   function renderHistoryPanel() {
-    var encBlob = parseShiftHistoryEnc(state.__meta && state.__meta.shiftHistoryEnc);
-    var hasUnlockPath = !!getHistoryPassword() || !!encBlob;
     var history = (state.__meta && state.__meta.shiftHistory) || [];
-    if (!hasUnlockPath) {
-      return ''
-        + '<div class="shift-history-panel mt-4">'
-        + '  <p class="text-sm text-amber-700">No encrypted shift history in this browser yet. Use <strong>Import backup</strong> below with your team passphrase, or add <code>window.MONITOR_TOOLS_SHIFT_HISTORY_PASSWORD</code> (build inject / local config) to auto-enable encryption. A host login (e.g. Netlify Basic Auth) does not replace the history passphrase.</p>'
-        + '</div>';
-    }
-    if (!historyUnlocked) {
+    if (shiftHistoryEncryptionInUse() && !historyUnlocked) {
       return ''
         + '<div class="shift-history-panel mt-4">'
         + '  <p class="text-sm font-semibold text-slate-900 mb-2">Shift history (locked)</p>'
@@ -1404,11 +1402,14 @@
           + '</article>';
       }).join('')
       : '<p class="text-sm text-slate-600">No saved shifts yet. Save one when checklist is complete.</p>';
+    var lockBtnHtml = shiftHistoryEncryptionInUse()
+      ? '<button type="button" data-action="lock-history" class="text-xs text-primary hover:text-primary-dark font-semibold">Lock</button>'
+      : '';
     return ''
       + '<div class="shift-history-panel mt-4">'
       + '  <div class="flex items-center justify-between gap-2">'
       + '    <p class="text-sm font-semibold text-slate-900">' + (shiftHistoryNetlifyDbEnabled() ? 'Shift history (cloud)' : ('Shift history (last ' + HISTORY_LIMIT + ')')) + '</p>'
-      + '    <button type="button" data-action="lock-history" class="text-xs text-primary hover:text-primary-dark font-semibold">Lock</button>'
+      + lockBtnHtml
       + '  </div>'
       + '  <div class="mt-3 space-y-2">' + itemsHtml + '</div>'
       + '</div>';
@@ -1620,15 +1621,20 @@
 
   /** Dedicated `#/shift-history` route: password + list only (obfuscation, not server auth). */
   function renderHistoryOnlyPage() {
+    var historyDesc = shiftHistoryEncryptionInUse()
+      ? 'Unlock with your history password to view or export past saved shifts. Same encrypted storage as the full checklist.'
+      : 'View or export past saved shifts stored in this browser'
+        + (shiftHistoryNetlifyDbEnabled() ? ' (and merged with cloud history when sync is enabled).' : '.');
+    var backupBlock = shiftHistoryEncryptionInUse() ? renderEncryptedBackupTools() : '';
     return ''
       + '<div class="max-w-3xl mx-auto">'
       + '  <div class="mb-6">'
       + '    <h1 class="mt-page-title">Shift history</h1>'
-      + '    <p class="mt-page-desc mt-2">Unlock with your history password to view or export past saved shifts. Same encrypted storage as the full checklist.</p>'
+      + '    <p class="mt-page-desc mt-2">' + historyDesc + '</p>'
       + '  </div>'
       + '  <div class="rounded-3xl border border-slate-200 p-4 sm:p-5 bg-white">'
       + renderHistoryPanel()
-      + renderEncryptedBackupTools()
+      + backupBlock
       + '    <p class="mt-4 pt-4 border-t border-slate-200/80 text-sm"><a href="#/checklist" class="text-primary font-semibold hover:text-primary-dark">← Full shift checklist</a></p>'
       + '  </div>'
       + '</div>';
@@ -1790,9 +1796,16 @@
     } else {
       historyPlainShadow = sanitizeShiftHistory((state.__meta && state.__meta.shiftHistory) || []);
     }
+    if (!shiftHistoryEncryptionInUse()) {
+      historyUnlocked = true;
+    }
     rootEl.innerHTML = render();
 
-    if (isHistoryOnlyLayout() && !historyUnlocked && (getHistoryPassword() || parseShiftHistoryEnc(state.__meta && state.__meta.shiftHistoryEnc))) {
+    if (!shiftHistoryEncryptionInUse() && shiftHistoryNetlifyDbEnabled()) {
+      maybeSyncShiftHistoryFromNetlifyDb();
+    }
+
+    if (isHistoryOnlyLayout() && !historyUnlocked && shiftHistoryEncryptionInUse()) {
       requestAnimationFrame(function () {
         if (!rootEl) return;
         var pwd = rootEl.querySelector('#shiftHistoryPasswordInput');
@@ -1838,7 +1851,7 @@
         state = buildDefaultState();
         historyPlainShadow = [];
         pbkdfKeyPromises = {};
-        historyUnlocked = false;
+        historyUnlocked = !shiftHistoryEncryptionInUse();
         historyUnlockError = '';
         emailSendState = { status: 'idle', message: '' };
         persistState();
@@ -1983,6 +1996,7 @@
 
       var lockBtn = target.closest('[data-action="lock-history"]');
       if (lockBtn) {
+        if (!shiftHistoryEncryptionInUse()) return;
         historyUnlocked = false;
         historyUnlockError = '';
         if (historyEncryptActive()) state.__meta.shiftHistory = [];
