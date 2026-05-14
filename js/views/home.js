@@ -10,7 +10,6 @@ var homeView = {
       + '<div class="max-w-3xl mx-auto mb-10 text-center">'
       + '  <p class="mt-page-eyebrow">Operations toolkit</p>'
       + '  <h1 class="mt-page-title mb-3">Monitor Tools</h1>'
-      + '  <p class="mt-page-desc mx-auto">Browser-based helpers for monitoring workflows, queries, handovers, and stats. Runs entirely in the page—no install.</p>'
       + '</div>'
       + '<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">'
       + '  <a href="#/nested" class="mt-tool-card text-left items-start">'

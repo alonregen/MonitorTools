@@ -15,6 +15,11 @@
   var historyUnlockError = '';
   var emailSendState = { status: 'idle', message: '' };
   var checklistToastTimer = null;
+  var validationTriggered = false;
+  var shiftSaved = false;
+  var shiftSent = false;
+  var shiftMissingValidation = false;
+  var suppressNextSuccessModal = false;
   var historyViewKeydownHandler = null;
   /** After unlock without `MONITOR_TOOLS_SHIFT_HISTORY_PASSWORD`, holds the typed passphrase for encrypt/re-save until Lock. */
   var sessionHistoryPassword = '';
@@ -48,12 +53,11 @@
       items: [
         { id: 'lastShiftReady', emoji: '📋', title: 'Review last shift — ready to start', hint: 'I talked with the previous shift, got all the information and data, and I am ready to start my shift.', allowNote: false },
         { id: 'checkSlack', emoji: '💬', title: 'Check Slack', hint: 'Channels, DMs, and alerts — see what is live, handled, or needs you now.', allowNote: false },
-        { id: 'checkHubspot', emoji: '🟠', title: 'Check HubSpot', hint: 'Tickets and active payouts queue.', allowNote: false },
         {
           id: 'openMonitoring',
           emoji: '📊',
           title: 'Open monitoring',
-          hint: 'Bring up each view below so nothing is missing from your screen.',
+          hint: 'Screens that need to be open on your computer.',
           allowNote: false,
           subItems: [
             { id: 'hubspot', label: 'HubSpot', emoji: '🟠' },
@@ -66,6 +70,19 @@
             { id: 'hibob', label: 'HiBob', emoji: '👥' },
             { id: 'clientPortal', label: 'Client portal', emoji: '🌐' },
             { id: 'rbo', label: 'RBO', emoji: '📑' }
+          ]
+        },
+        {
+          id: 'tvDashboardLinks',
+          emoji: '📺',
+          title: 'TV dashboard',
+          hint: 'Open all main monitoring dashboards on the TV screen.',
+          allowNote: false,
+          subItems: [
+            { id: 'opensearchMonitors', label: 'OpenSearch monitors', emoji: '🔎', url: '' },
+            { id: 'datadogDashboard', label: 'Datadog dashboard', emoji: '🐕', url: '' },
+            { id: 'lookerViews', label: 'Looker views', emoji: '📈', url: '' },
+            { id: 'versionGeneralDash', label: 'Version & general dashboard', emoji: '📊', url: '' }
           ]
         },
         {
@@ -98,6 +115,7 @@
       id: 'duringShift',
       title: '🛰️ During Shift',
       items: [
+        { id: 'checkHubspot', emoji: '🟠', title: 'Check HubSpot', hint: 'Tickets and active payouts queue.', allowNote: false },
         { id: 'checkActivePayoutsQueue', emoji: '💸', title: 'Check Active payouts queue', hint: 'Scan the queue for new items, stuck payouts, or anything needing action.', allowNote: false },
         {
           id: 'systemHealthFirst',
@@ -121,11 +139,11 @@
       id: 'endShift',
       title: '🌙 End Shift',
       items: [
-        { id: 'openTicketsReview', emoji: '🎫', title: 'Review open tickets and incidents', hint: 'Make sure follow-up instructions and links are clear.', allowNote: true },
-        { id: 'nightReset', emoji: '💻', title: 'Night shift reset/update if needed', hint: 'Finish any pending reset or update before you sign off if the shift requires it.', allowNote: false },
-        { id: 'ongoingHandoverPrep', emoji: '📝', title: 'Prepare handover context continuously', hint: 'Keep unresolved items ready for the next shift.', allowNote: false },
-        { id: 'handoverUnresolved', emoji: '🤝', title: 'Pass unresolved issues forward', hint: 'Handover ownership and next actions to the next shift.', allowNote: true },
-        { id: 'shiftReportUpdate', emoji: '📄', title: 'Update shift report', hint: 'Summarize incidents, actions, resolutions, and important updates.', allowNote: true }
+        { id: 'ongoingHandoverPrep', emoji: '📝', title: 'Prepare handover notes', hint: 'Write up open threads, ongoing incidents, and any context the next shift needs to hit the ground running.', allowNote: false },
+        { id: 'wasIncident', emoji: '🚨', title: 'Was there an incident?', hint: 'Describe any incidents that occurred during the shift — what happened, impact, and current status.', allowNote: true },
+        { id: 'openChatsQueue', emoji: '💬', title: 'Open chats & Slack messages', hint: 'List any open conversations or Slack threads that are still waiting for a response.', allowNote: true },
+        { id: 'alertsTriggered', emoji: '🔔', title: 'Which alerts were triggered?', hint: 'Note down every alert that fired this shift — handled, ongoing, or snoozed.', allowNote: true },
+        { id: 'nightReset', emoji: '💻', title: 'PC reset / update (if needed)', hint: 'Complete any pending PC reset or update required before signing off.', allowNote: false }
       ]
     }
   ];
@@ -239,7 +257,7 @@
   function formatCompletedAtReadable(entry, item) {
     var at = normalizedCompletedAt(entry, item);
     if (at == null) return '';
-    return 'Completed at: ' + new Date(at).toLocaleString();
+    return 'Completed at: ' + new Date(at).toLocaleString(undefined, { hour12: false });
   }
 
   function buildDefaultState() {
@@ -798,7 +816,7 @@
     lines.push('Shift Checklist Summary');
     lines.push('Your name: ' + (owner || 'Not entered'));
     lines.push('Shift: ' + (slotLine || '(not selected)'));
-    lines.push('Generated: ' + new Date().toLocaleString());
+    lines.push('Generated: ' + new Date().toLocaleString(undefined, { hour12: false }));
     lines.push('');
     checklistSections.forEach(function (section) {
       lines.push(section.title);
@@ -878,7 +896,7 @@
       'Shift Checklist Snapshot',
       'Your name: ' + (owner || 'Not entered'),
       'Shift: ' + (slotSnap || '(not selected)'),
-      'Saved: ' + new Date(createdAt).toLocaleString(),
+      'Saved: ' + new Date(createdAt).toLocaleString(undefined, { hour12: false }),
       'Completion: ' + progress.checked + '/' + progress.total,
       ''
     ];
@@ -892,13 +910,13 @@
           });
           if (item.note) lines.push('  Note: ' + String(item.note).replace(/\n/g, ' '));
           if (typeof item.completedAt === 'number' && Number.isFinite(item.completedAt) && item.checked) {
-            lines.push('  Completed at: ' + new Date(item.completedAt).toLocaleString());
+            lines.push('  Completed at: ' + new Date(item.completedAt).toLocaleString(undefined, { hour12: false }));
           }
         } else {
           lines.push('- ' + (item.checked ? '[x] ' : '[ ] ') + item.title);
           if (item.note) lines.push('  Note: ' + item.note.replace(/\n/g, ' '));
           if (typeof item.completedAt === 'number' && Number.isFinite(item.completedAt) && item.checked) {
-            lines.push('  Completed at: ' + new Date(item.completedAt).toLocaleString());
+            lines.push('  Completed at: ' + new Date(item.completedAt).toLocaleString(undefined, { hour12: false }));
           }
         }
       });
@@ -960,7 +978,7 @@
     if (typeof at !== 'number' || !Number.isFinite(at)) return;
     var p = document.createElement('p');
     p.className = 'shift-snap-completed-at';
-    p.textContent = 'Completed at: ' + new Date(at).toLocaleString();
+    p.textContent = 'Completed at: ' + new Date(at).toLocaleString(undefined, { hour12: false });
     host.appendChild(p);
   }
 
@@ -988,7 +1006,7 @@
       dl.appendChild(row);
     }
     addRow('Shift', slotLine);
-    addRow('Saved', new Date(entry.createdAt).toLocaleString());
+    addRow('Saved', new Date(entry.createdAt).toLocaleString(undefined, { hour12: false }));
     heroLeft.appendChild(dl);
 
     var heroRight = document.createElement('div');
@@ -1133,10 +1151,17 @@
     var meta = document.createElement('p');
     meta.className = 'shift-history-view-meta';
     var savedAt = new Date(entry.createdAt);
-    meta.textContent = Number.isFinite(savedAt.getTime()) ? savedAt.toLocaleString() : '';
+    meta.textContent = Number.isFinite(savedAt.getTime()) ? savedAt.toLocaleString(undefined, { hour12: false }) : '';
     headerLeft.appendChild(eyebrow);
     headerLeft.appendChild(title);
     headerLeft.appendChild(meta);
+
+    var closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.className = 'shift-history-view-done-btn';
+    closeBtn.setAttribute('aria-label', 'Close and return');
+    closeBtn.innerHTML = '<i class="fas fa-chevron-left" aria-hidden="true"></i><span> Back</span>';
+    closeBtn.addEventListener('click', closeHistoryViewModal);
 
     var headerRight = document.createElement('div');
     headerRight.className = 'shift-history-view-header-right';
@@ -1146,14 +1171,8 @@
       badge.textContent = entry.checked + '/' + entry.total + ' tasks';
       headerRight.appendChild(badge);
     }
-    var closeBtn = document.createElement('button');
-    closeBtn.type = 'button';
-    closeBtn.className = 'shift-history-view-done-btn';
-    closeBtn.setAttribute('aria-label', 'Close and return');
-    closeBtn.innerHTML = '<i class="fas fa-arrow-left" aria-hidden="true"></i><span> Back</span>';
-    closeBtn.addEventListener('click', closeHistoryViewModal);
-    headerRight.appendChild(closeBtn);
 
+    header.appendChild(closeBtn);
     header.appendChild(headerLeft);
     header.appendChild(headerRight);
 
@@ -1214,6 +1233,47 @@
     if (t) t.remove();
   }
 
+  function showChecklistSuccessModal(opts) {
+    var existing = document.getElementById('shiftSuccessModal');
+    if (existing) existing.remove();
+    var backdrop = document.createElement('div');
+    backdrop.id = 'shiftSuccessModal';
+    backdrop.className = 'shift-success-modal-backdrop';
+    backdrop.setAttribute('role', 'dialog');
+    backdrop.setAttribute('aria-modal', 'true');
+    var actionBtnHtml = opts.actionLabel
+      ? '<button type="button" class="shift-success-modal-action" id="shiftSuccessModalAction">'
+        + '<i class="' + opts.actionIcon + '"></i> ' + escapeHtml(opts.actionLabel)
+        + '</button>'
+      : '';
+    backdrop.innerHTML = ''
+      + '<div class="shift-success-modal-card">'
+      + '  <div class="shift-success-modal-icon"><i class="fas fa-circle-check"></i></div>'
+      + '  <p class="shift-success-modal-title">' + escapeHtml(opts.title) + '</p>'
+      + '  <p class="shift-success-modal-msg">' + escapeHtml(opts.message) + '</p>'
+      + '  <div class="shift-success-modal-btns">'
+      + actionBtnHtml
+      + '    <button type="button" class="shift-success-modal-dismiss" id="shiftSuccessModalDismiss">Done</button>'
+      + '  </div>'
+      + '</div>';
+    document.body.appendChild(backdrop);
+    function closeModal() {
+      var el = document.getElementById('shiftSuccessModal');
+      if (el) el.remove();
+    }
+    document.getElementById('shiftSuccessModalDismiss').addEventListener('click', closeModal);
+    backdrop.addEventListener('click', function (e) { if (e.target === backdrop) closeModal(); });
+    document.addEventListener('keydown', function onKey(e) {
+      if (e.key === 'Escape') { closeModal(); document.removeEventListener('keydown', onKey); }
+    });
+    if (opts.actionLabel) {
+      document.getElementById('shiftSuccessModalAction').addEventListener('click', function () {
+        closeModal();
+        if (typeof opts.actionHandler === 'function') opts.actionHandler();
+      });
+    }
+  }
+
   function showChecklistToast(kind, message) {
     dismissChecklistToast();
     var text = String(message || '').trim();
@@ -1247,13 +1307,16 @@
   }
 
   function sendChecklistEmail() {
+    validationTriggered = true;
+    var sendComplete = allRequiredComplete();
+    if (!sendComplete) shiftMissingValidation = true;
+    rerenderSummary();
+    refreshAllItemCards();
+    if (!sendComplete) return;
+    shiftMissingValidation = false;
     var meta = state.__meta || {};
     var owner = (meta.shiftOwner || '').trim();
     var accessKey = getWeb3FormsAccessKey();
-    if (!owner) {
-      setEmailStatus('error', 'Please enter your name first.');
-      return;
-    }
     if (!accessKey) {
       setEmailStatus('error', 'Missing Web3Forms key. Set window.MONITOR_TOOLS_WEB3FORMS_ACCESS_KEY.');
       return;
@@ -1277,7 +1340,24 @@
       .then(function (res) { return res.json(); })
       .then(function (res) {
         if (res && res.success) {
-          setEmailStatus('success', 'Email sent successfully.');
+          emailSendState = { status: 'idle', message: '' };
+          shiftSent = true;
+          shiftMissingValidation = false;
+          rerenderSummary();
+          if (!suppressNextSuccessModal) {
+            showChecklistSuccessModal({
+              title: 'Email sent!',
+              message: 'Your shift summary has been sent successfully.',
+              actionLabel: 'Save to shift history',
+              actionIcon: 'fas fa-floppy-disk',
+              actionHandler: function () {
+                suppressNextSuccessModal = true;
+                var saveBtn = rootEl && rootEl.querySelector('[data-action="save-shift"]');
+                if (saveBtn) saveBtn.click();
+              }
+            });
+          }
+          suppressNextSuccessModal = false;
         } else {
           var hint = (res && res.message) ? String(res.message) : 'Check Web3Forms key. If the API requires an email field, set CHECKLIST_OWNER_EMAIL (your address) in site config.';
           setEmailStatus('error', hint);
@@ -1286,6 +1366,20 @@
       .catch(function () {
         setEmailStatus('error', 'Network error while sending email.');
       });
+  }
+
+  function getEntryHandoverNotes(entry) {
+    var notes = [];
+    if (!entry || !Array.isArray(entry.sections)) return notes;
+    entry.sections.forEach(function (sec) {
+      if (!Array.isArray(sec.items)) return;
+      sec.items.forEach(function (it) {
+        if (it && typeof it.note === 'string' && it.note.trim()) {
+          notes.push({ title: it.title || '', note: it.note.trim() });
+        }
+      });
+    });
+    return notes;
   }
 
   function renderHistoryPanel() {
@@ -1303,12 +1397,24 @@
     }
     var itemsHtml = history.length
       ? history.map(function (entry) {
+        var notes = getEntryHandoverNotes(entry);
+        var notesHtml = notes.length
+          ? '<div class="shift-history-card-notes">'
+            + notes.map(function (n) {
+              return '<div class="shift-history-card-note">'
+                + '<span class="shift-history-card-note-label"><i class="fas fa-note-sticky"></i> ' + escapeHtml(n.title) + '</span>'
+                + '<p class="shift-history-card-note-text">' + escapeHtml(n.note) + '</p>'
+                + '</div>';
+            }).join('')
+            + '</div>'
+          : '';
         return ''
           + '<article class="shift-history-card">'
-          + '  <div class="flex flex-wrap items-center gap-2">'
-          + '    <p class="text-sm font-semibold text-slate-800">' + (shiftHistoryEntryHasHandoverNote(entry) ? '❗ ' : '') + escapeHtml(shiftHistoryEntryDisplayTitle(entry)) + '</p>'
+          + '  <div class="flex flex-wrap items-center justify-between gap-2">'
+          + '    <p class="text-sm font-semibold text-slate-800">' + (notes.length ? '❗ ' : '') + escapeHtml(shiftHistoryEntryDisplayTitle(entry)) + '</p>'
+          + '    <span class="text-xs text-slate-500 font-medium">' + entry.checked + '/' + entry.total + ' tasks</span>'
           + '  </div>'
-          + '  <p class="text-sm text-slate-600 mt-1">Completion: ' + entry.checked + '/' + entry.total + '</p>'
+          + notesHtml
           + '  <div class="flex flex-wrap gap-2 mt-3">'
           + '    <button type="button" data-action="view-history" data-history-id="' + escapeHtml(entry.id) + '" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-white border border-slate-200 text-slate-800 hover:bg-slate-50 transition text-xs font-semibold">View</button>'
           + '    <button type="button" data-action="copy-history" data-history-id="' + escapeHtml(entry.id) + '" class="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-slate-100 text-slate-700 hover:bg-slate-200 transition text-xs font-semibold">Copy summary</button>'
@@ -1321,13 +1427,20 @@
     var lockBtnHtml = shiftHistoryEncryptionInUse()
       ? '<button type="button" data-action="lock-history" class="text-xs text-primary hover:text-primary-dark font-semibold">Lock</button>'
       : '';
+    var entryCount = history.length;
+    var countBadge = entryCount > 0
+      ? '<span class="shift-history-count-badge">' + entryCount + ' ' + (entryCount === 1 ? 'entry' : 'entries') + '</span>'
+      : '';
     return ''
       + '<div class="shift-history-panel mt-4">'
-      + '  <div class="flex items-center justify-between gap-2">'
-      + '    <p class="text-sm font-semibold text-slate-900">' + (shiftHistoryNetlifyDbEnabled() ? 'Shift history (cloud)' : ('Shift history (last ' + HISTORY_LIMIT + ')')) + '</p>'
+      + '  <div class="flex items-center justify-between gap-2 mb-3">'
+      + '    <div class="flex items-center gap-2">'
+      + '      <p class="text-sm font-semibold text-slate-900">' + (shiftHistoryNetlifyDbEnabled() ? 'Shift history (cloud)' : 'Shift history') + '</p>'
+      + countBadge
+      + '    </div>'
       + lockBtnHtml
       + '  </div>'
-      + '  <div class="mt-3 space-y-2">' + itemsHtml + '</div>'
+      + '  <div class="shift-history-list">' + itemsHtml + '</div>'
       + '</div>';
   }
 
@@ -1346,11 +1459,17 @@
     return item.subItems.map(function (si) {
       var done = !!sub[si.id];
       var em = si.emoji ? String(si.emoji) : '📌';
-      return ''
-        + '<button type="button" class="shift-checklist-subcard' + (done ? ' shift-checklist-subcard--done' : '') + '" data-action="toggle-subitem" data-item-key="' + escapeHtml(key) + '" data-sub-id="' + escapeHtml(si.id) + '">'
-        + '  <span class="shift-checklist-subcard-emoji" aria-hidden="true">' + escapeHtml(em) + '</span>'
-        + '  <span class="shift-checklist-subcard-label">' + escapeHtml(si.label) + '</span>'
-        + '</button>';
+      var hasUrl = typeof si.url === 'string' && si.url.trim() !== '';
+      var invalid = validationTriggered && !done;
+      var cls = 'shift-checklist-subcard' + (done ? ' shift-checklist-subcard--done' : '') + (invalid ? ' shift-checklist-subcard--invalid' : '') + (hasUrl ? ' shift-checklist-subcard--link' : '');
+      var dataAttrs = ' data-action="toggle-subitem" data-item-key="' + escapeHtml(key) + '" data-sub-id="' + escapeHtml(si.id) + '"';
+      var inner = '<span class="shift-checklist-subcard-emoji" aria-hidden="true">' + escapeHtml(em) + '</span>'
+        + '<span class="shift-checklist-subcard-label">' + escapeHtml(si.label) + '</span>'
+        + (hasUrl ? '<i class="fas fa-arrow-up-right-from-square shift-checklist-subcard-link-icon" aria-hidden="true"></i>' : '');
+      if (hasUrl) {
+        return '<a href="' + escapeHtml(si.url) + '" target="_blank" rel="noopener noreferrer" class="' + cls + '"' + dataAttrs + '>' + inner + '</a>';
+      }
+      return '<button type="button" class="' + cls + '"' + dataAttrs + '>' + inner + '</button>';
     }).join('');
   }
 
@@ -1368,7 +1487,7 @@
       var sc = countSubCompletion(entry, item);
       var subDone = allSubsChecked(entry, item);
       var pillText = subDone ? 'Done' : (sc.checked + '/' + sc.total);
-      var doneClass = subDone ? 'shift-checklist-card--done' : '';
+      var doneClass = subDone ? 'shift-checklist-card--done' : (validationTriggered ? 'shift-checklist-card--invalid' : '');
       var panelOpen = entry.subPanelOpen !== false;
       var panelDomId = 'subpanel-' + key.replace(/[^a-zA-Z0-9_-]/g, '-');
       var chevOpen = panelOpen ? ' shift-checklist-chevron--open' : '';
@@ -1395,7 +1514,7 @@
         + '  </div>'
         + '</article>';
     }
-    var doneClass = entry.checked ? 'shift-checklist-card--done' : '';
+    var doneClass = entry.checked ? 'shift-checklist-card--done' : (validationTriggered ? 'shift-checklist-card--invalid' : '');
     var ctaText = entry.checked ? 'Done' : 'Tap to complete';
     var noteHtml = item.allowNote
       ? '<div class="mt-3">'
@@ -1458,6 +1577,31 @@
     }).join('');
   }
 
+  function renderStatusBadge() {
+    if (shiftSaved && shiftSent) {
+      return '<span id="shiftChecklistStatusBadge" class="shift-overview-status shift-overview-status--ok"><i class="fas fa-circle-check"></i> Saved &amp; Sent</span>';
+    }
+    if (shiftSaved) {
+      return '<span id="shiftChecklistStatusBadge" class="shift-overview-status shift-overview-status--partial"><i class="fas fa-floppy-disk"></i> Saved · not sent yet</span>';
+    }
+    if (shiftSent) {
+      return '<span id="shiftChecklistStatusBadge" class="shift-overview-status shift-overview-status--partial"><i class="fas fa-paper-plane"></i> Sent · not saved yet</span>';
+    }
+    if (shiftMissingValidation) {
+      return '<span id="shiftChecklistStatusBadge" class="shift-overview-status shift-overview-status--warn"><i class="fas fa-circle-exclamation"></i> Missing required fields</span>';
+    }
+    return '<span id="shiftChecklistStatusBadge"></span>';
+  }
+
+  function refreshStatusBadge() {
+    if (!rootEl || isHistoryOnlyLayout()) return;
+    var el = rootEl.querySelector('#shiftChecklistStatusBadge');
+    if (!el) return;
+    var tmp = document.createElement('span');
+    tmp.innerHTML = renderStatusBadge();
+    el.parentNode.replaceChild(tmp.firstChild, el);
+  }
+
   function renderSummary(progress) {
     var cheer = getCheer(progress);
     var meta = state.__meta || {};
@@ -1476,13 +1620,26 @@
     var celebration = progress.total > 0 && progress.checked === progress.total
       ? '<div class="shift-checklist-celebrate mt-3">🥳 You crushed this shift checklist!</div>'
       : '';
+    var slotEmpty = !normalizeShiftSlot(meta.shiftSlot);
+    var ownerEmpty = !owner.trim();
+    var showValidation = validationTriggered;
+    var slotWrapCls = (showValidation && slotEmpty) ? ' shift-meta-slot-wrap--required' : '';
+    var slotHint = (showValidation && slotEmpty)
+      ? '<p class="shift-meta-req-hint mt-2"><i class="fas fa-circle-exclamation mr-1"></i>Select your shift type</p>'
+      : '';
+    var cardValidatedCls = showValidation ? ' shift-meta-card--validated' : '';
+    var nameHint = '<p class="shift-meta-req-hint mt-2 shift-meta-name-hint"><i class="fas fa-circle-exclamation mr-1"></i>Enter your name</p>';
     var shiftCard = ''
-      + '<div class="shift-checklist-meta-card rounded-2xl border border-slate-200/90 bg-white/70 p-4 sm:p-5 shadow-sm">'
+      + '<div class="shift-checklist-meta-card rounded-2xl border border-slate-200/90 bg-white/70 p-4 sm:p-5 shadow-sm' + cardValidatedCls + '">'
       + '  <p class="text-xs font-semibold uppercase tracking-wide text-slate-500 mb-3">Shift</p>'
-      + '  <div class="shift-checklist-slot-row" role="radiogroup" aria-label="Shift slot">' + renderShiftSlotPicker(meta) + '</div>'
+      + '  <div class="shift-meta-slot-wrap' + slotWrapCls + '">'
+      + '    <div class="shift-checklist-slot-row" role="radiogroup" aria-label="Shift slot">' + renderShiftSlotPicker(meta) + '</div>'
+      + slotHint
+      + '  </div>'
       + '  <div class="mt-4">'
       + '    <label class="block text-xs font-semibold text-slate-700 mb-1" for="shiftChecklistYourName">Your name</label>'
-      + '    <input id="shiftChecklistYourName" type="text" data-meta-field="shiftOwner" value="' + escapeHtml(owner) + '" autocomplete="name" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-primary focus:border-primary">'
+      + '    <input id="shiftChecklistYourName" type="text" data-meta-field="shiftOwner" value="' + escapeHtml(owner) + '" autocomplete="name" placeholder="Type your name" class="w-full px-3 py-2 text-sm border border-slate-200 rounded-xl bg-white focus:ring-2 focus:ring-primary focus:border-primary shift-meta-input-required">'
+      + nameHint
       + '  </div>'
       + sendRow
       + '</div>';
@@ -1520,6 +1677,7 @@
     var oldSummary = rootEl.querySelector('.shift-checklist-summary');
     if (!oldSummary) return;
     oldSummary.outerHTML = renderSummary(getProgressSnapshot());
+    refreshStatusBadge();
   }
 
   function renderShiftHistorySectionGateLoginForm() {
@@ -1589,8 +1747,9 @@
     var progress = getProgressSnapshot();
     return ''
       + '<div class="max-w-5xl mx-auto">'
-      + '  <div class="mb-6">'
+      + '  <div class="mb-6 flex flex-wrap items-center gap-3">'
       + '    <h1 class="mt-page-title">Shift checklist</h1>'
+      + renderStatusBadge()
       + '  </div>'
       + renderSummary(progress)
       + '  <div class="space-y-5">' + checklistSections.map(function (section) { return renderSection(section, progress); }).join('') + '</div>'
@@ -1618,6 +1777,7 @@
       var sc = countSubCompletion(entry, item);
       var subDone = allSubsChecked(entry, item);
       card.classList.toggle('shift-checklist-card--done', subDone);
+      card.classList.toggle('shift-checklist-card--invalid', validationTriggered && !subDone);
       var pillSub = card.querySelector('.shift-checklist-subpanel-head .shift-checklist-pill');
       if (pillSub) pillSub.textContent = subDone ? 'Done' : (sc.checked + '/' + sc.total);
       var panelOpen = entry.subPanelOpen !== false;
@@ -1638,11 +1798,13 @@
         if (!btn) return;
         var on = !!(entry.sub && entry.sub[si.id]);
         btn.classList.toggle('shift-checklist-subcard--done', on);
+        btn.classList.toggle('shift-checklist-subcard--invalid', validationTriggered && !on);
       });
       return;
     }
     var isDone = !!entry.checked;
     card.classList.toggle('shift-checklist-card--done', isDone);
+    card.classList.toggle('shift-checklist-card--invalid', validationTriggered && !isDone);
     var pill = card.querySelector('.shift-checklist-pill');
     if (pill) pill.textContent = isDone ? 'Done' : 'Tap to complete';
     var tsEl = card.querySelector('.shift-checklist-completed-at');
@@ -1651,6 +1813,34 @@
       tsEl.textContent = text;
       tsEl.classList.toggle('hidden', !text);
     }
+  }
+
+  function refreshAllItemCards() {
+    checklistSections.forEach(function (section) {
+      section.items.forEach(function (item) {
+        refreshItemCard(itemKey(section.id, item.id));
+      });
+    });
+  }
+
+  function allRequiredComplete() {
+    var meta = state.__meta || {};
+    if (!(meta.shiftOwner || '').trim()) return false;
+    if (!normalizeShiftSlot(meta.shiftSlot)) return false;
+    for (var i = 0; i < checklistSections.length; i++) {
+      var section = checklistSections[i];
+      for (var j = 0; j < section.items.length; j++) {
+        var item = section.items[j];
+        var key = itemKey(section.id, item.id);
+        var entry = state[key] || {};
+        if (itemHasSubItems(item)) {
+          if (!allSubsChecked(entry, item)) return false;
+        } else {
+          if (!entry.checked) return false;
+        }
+      }
+    }
+    return true;
   }
 
   function toggleSubItem(parentKey, subId) {
@@ -1712,6 +1902,9 @@
       shiftHistorySectionGateState = { loaded: true, gateEnabled: false, authenticated: true };
     }
     state = loadState();
+    validationTriggered = false;
+    shiftSaved = false; shiftSent = false; shiftMissingValidation = false;
+    emailSendState = { status: 'idle', message: '' };
     historyPlainShadow = [];
     historyHydrationPromise = Promise.resolve();
     if (usesWebCrypto() && parseShiftHistoryEnc(state.__meta && state.__meta.shiftHistoryEnc)) {
@@ -1783,6 +1976,14 @@
         var metaField = target.dataset.metaField;
         state.__meta = state.__meta || { shiftOwner: '', shiftSlot: '', shiftHistory: [] };
         state.__meta[metaField] = target.value || '';
+        if (validationTriggered) {
+          validationTriggered = false;
+          shiftMissingValidation = false;
+          var validatedCard = rootEl && rootEl.querySelector('.shift-meta-card--validated');
+          if (validatedCard) validatedCard.classList.remove('shift-meta-card--validated');
+          refreshAllItemCards();
+          refreshStatusBadge();
+        }
         persistState();
         return;
       }
@@ -1792,6 +1993,13 @@
       var item = getItemByKey(key);
       if (!item || !item.allowNote) return;
       state[key].note = target.value || '';
+      var hasNote = !!(target.value || '').trim();
+      if (state[key].checked !== hasNote) {
+        state[key].checked = hasNote;
+        if (item.trackCompletedAt) state[key].completedAt = hasNote ? Date.now() : null;
+        refreshItemCard(key);
+        refreshProgressUI();
+      }
       persistState();
     };
     rootEl.addEventListener('input', onInputHandler);
@@ -1808,6 +2016,8 @@
         historyUnlocked = !shiftHistoryEncryptionInUse();
         historyUnlockError = '';
         emailSendState = { status: 'idle', message: '' };
+        validationTriggered = false;
+        shiftSaved = false; shiftSent = false; shiftMissingValidation = false;
         persistState();
         rootEl.innerHTML = render();
         return;
@@ -1880,7 +2090,10 @@
         state.__meta = state.__meta || {};
         var prev = normalizeShiftSlot(state.__meta.shiftSlot);
         state.__meta.shiftSlot = prev === picked ? '' : picked;
+        validationTriggered = false;
+        shiftMissingValidation = false;
         rerenderSummary();
+        refreshAllItemCards();
         persistState();
         return;
       }
@@ -1905,6 +2118,13 @@
 
       var saveShiftBtn = target.closest('[data-action="save-shift"]');
       if (saveShiftBtn) {
+        validationTriggered = true;
+        var saveComplete = allRequiredComplete();
+        if (!saveComplete) shiftMissingValidation = true;
+        rerenderSummary();
+        refreshAllItemCards();
+        if (!saveComplete) return;
+        shiftMissingValidation = false;
         historyHydrationPromise.then(function () {
           if (parseShiftHistoryEnc(state.__meta && state.__meta.shiftHistoryEnc) && !historyUnlocked && !historyEncryptActive()) {
             showChecklistToast('error', 'Unlock shift history first (your passphrase), then save a snapshot.');
@@ -1923,13 +2143,20 @@
           var afterPersist = historyEncryptActive() ? persistChain : Promise.resolve();
           afterPersist.then(function () {
             postShiftSnapshotToNetlifyDb(snap);
-            if (isHistoryOnlyLayout()) {
-              if (rootEl) rootEl.innerHTML = render();
-              showChecklistToast('success', 'Shift saved to history.');
-            } else {
-              showChecklistToast('success', 'Shift saved to history.');
-              window.location.hash = '#/shift-history';
+            shiftSaved = true;
+            shiftMissingValidation = false;
+            if (isHistoryOnlyLayout() && rootEl) rootEl.innerHTML = render();
+            else rerenderSummary();
+            if (!suppressNextSuccessModal) {
+              showChecklistSuccessModal({
+                title: 'Shift saved!',
+                message: 'Your shift snapshot has been saved to history.',
+                actionLabel: 'Send email summary',
+                actionIcon: 'fas fa-paper-plane',
+                actionHandler: function () { suppressNextSuccessModal = true; sendChecklistEmail(); }
+              });
             }
+            suppressNextSuccessModal = false;
           });
         });
         return;

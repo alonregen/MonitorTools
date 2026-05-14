@@ -242,6 +242,86 @@ body.mt-shell {
 .shift-checklist-slot-btn--active .shift-checklist-slot-sub {
   color: #6366f1;
 }
+
+/* ── Shift overview status badge ── */
+.shift-overview-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  line-height: 1.4;
+}
+.shift-overview-status i {
+  font-size: 0.65rem;
+}
+.shift-overview-status--ok {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+.shift-overview-status--partial {
+  background: #fffbeb;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+.shift-overview-status--warn {
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+/* ── Required field validation ── */
+.shift-meta-req-star {
+  color: #ef4444;
+  font-weight: 800;
+}
+.shift-meta-req-hint {
+  display: flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #dc2626;
+  letter-spacing: 0.01em;
+}
+.shift-meta-req-hint i {
+  font-size: 0.65rem;
+  flex-shrink: 0;
+}
+
+/* Name input — red when empty (only after validation triggered) */
+.shift-meta-card--validated .shift-meta-input-required:placeholder-shown {
+  border-color: #fca5a5;
+  background: rgba(254, 242, 242, 0.55);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.09);
+}
+.shift-meta-card--validated .shift-meta-input-required:placeholder-shown:focus {
+  border-color: #f87171;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.18);
+  background: rgba(254, 242, 242, 0.35);
+}
+/* Show hint only when validated + empty; hide when filled */
+.shift-meta-name-hint { display: none; }
+.shift-meta-card--validated .shift-meta-input-required:placeholder-shown ~ .shift-meta-name-hint {
+  display: flex;
+}
+
+/* Slot picker — red outline when no slot selected */
+.shift-meta-slot-wrap--required .shift-checklist-slot-row {
+  border: 1.5px solid #fca5a5;
+  border-radius: 1rem;
+  padding: 0.4rem;
+  background: rgba(254, 242, 242, 0.4);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.09);
+}
+.shift-meta-slot-wrap--required .shift-checklist-slot-btn {
+  background: rgba(255, 255, 255, 0.85);
+}
+
 .shift-checklist-progressbar {
   position: relative;
   width: 100%;
@@ -397,6 +477,31 @@ body.mt-shell {
   color: #15803d;
   line-height: 1;
 }
+.shift-checklist-subcard-link-icon {
+  font-size: 0.55rem;
+  color: #94a3b8;
+  margin-top: 0.1rem;
+  line-height: 1;
+}
+.shift-checklist-subcard--link {
+  text-decoration: none;
+}
+.shift-checklist-subcard--link:hover .shift-checklist-subcard-link-icon {
+  color: #6366f1;
+}
+.shift-checklist-card--invalid {
+  border-color: #fca5a5 !important;
+  background: rgba(254, 242, 242, 0.4) !important;
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.09), 0 2px 8px rgba(239, 68, 68, 0.07) !important;
+}
+.shift-checklist-subcard--invalid {
+  border-color: #fca5a5;
+  background: linear-gradient(165deg, #fff1f2 0%, #fff5f5 100%);
+  box-shadow: 0 1px 4px rgba(239, 68, 68, 0.14);
+}
+.shift-checklist-subcard--invalid .shift-checklist-subcard-label {
+  color: #b91c1c;
+}
 .shift-checklist-card--has-subs.shift-checklist-card--done .shift-checklist-title {
   color: #166534;
 }
@@ -450,6 +555,73 @@ body.mt-shell {
 }
 .shift-history-card + .shift-history-card {
   margin-top: 0.55rem;
+}
+.shift-history-list {
+  max-height: 30rem;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  padding-right: 0.15rem;
+  mask-image: linear-gradient(to bottom, black calc(100% - 2.5rem), transparent 100%);
+  -webkit-mask-image: linear-gradient(to bottom, black calc(100% - 2.5rem), transparent 100%);
+}
+.shift-history-list::-webkit-scrollbar {
+  width: 5px;
+}
+.shift-history-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.shift-history-list::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 99px;
+}
+.shift-history-list::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+.shift-history-count-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.55rem;
+  border-radius: 99px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  background: #e0e7ff;
+  color: #4338ca;
+  line-height: 1.4;
+}
+.shift-history-card-notes {
+  margin-top: 0.65rem;
+  padding: 0.6rem 0.7rem;
+  border-radius: 0.6rem;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+.shift-history-card-note-label {
+  display: block;
+  font-size: 0.67rem;
+  font-weight: 700;
+  color: #6366f1;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  margin-bottom: 0.18rem;
+}
+.shift-history-card-note-label i {
+  font-size: 0.62rem;
+}
+.shift-history-card-note-text {
+  margin: 0;
+  font-size: 0.82rem;
+  color: #334155;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.shift-history-card-note + .shift-history-card-note {
+  padding-top: 0.5rem;
+  border-top: 1px dashed #e2e8f0;
 }
 .shift-email-status {
   margin-top: 0.6rem;
@@ -514,6 +686,111 @@ body.mt-shell {
   }
 }
 
+/* ── Shift success modal ── */
+.shift-success-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  animation: shift-success-backdrop-in 0.2s ease-out;
+}
+@keyframes shift-success-backdrop-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+.shift-success-modal-card {
+  background: #fff;
+  border-radius: 1.5rem;
+  box-shadow: 0 24px 60px rgba(15, 23, 42, 0.22), 0 0 0 1px rgba(99, 102, 241, 0.1);
+  padding: 2rem 2rem 1.75rem;
+  max-width: 22rem;
+  width: 100%;
+  text-align: center;
+  animation: shift-success-card-in 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes shift-success-card-in {
+  from { opacity: 0; transform: scale(0.88) translateY(12px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+.shift-success-modal-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 3.5rem;
+  height: 3.5rem;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  color: #059669;
+  font-size: 1.6rem;
+  margin-bottom: 1rem;
+  box-shadow: 0 4px 14px rgba(5, 150, 105, 0.2);
+}
+.shift-success-modal-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: -0.01em;
+  margin-bottom: 0.35rem;
+}
+.shift-success-modal-msg {
+  font-size: 0.85rem;
+  color: #64748b;
+  line-height: 1.5;
+  margin-bottom: 1.5rem;
+}
+.shift-success-modal-btns {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.shift-success-modal-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  border-radius: 0.85rem;
+  background: linear-gradient(135deg, #4f46e5 0%, #6366f1 100%);
+  color: #fff;
+  font-size: 0.9rem;
+  font-weight: 700;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s, transform 0.15s;
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+}
+.shift-success-modal-action:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+.shift-success-modal-action:active {
+  transform: translateY(0) scale(0.98);
+}
+.shift-success-modal-dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  padding: 0.65rem 1rem;
+  border-radius: 0.85rem;
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.shift-success-modal-dismiss:hover {
+  background: #e2e8f0;
+}
+
 /* Shift history — full-screen snapshot view (page-like overlay) */
 body.shift-history-view-body-lock {
   overflow: hidden;
@@ -541,11 +818,11 @@ body.shift-history-view-body-lock {
 .shift-history-view-header {
   flex-shrink: 0;
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
+  flex-wrap: nowrap;
+  align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 1rem 1.25rem 1rem;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
   padding-top: max(1rem, env(safe-area-inset-top));
   padding-left: max(1.25rem, env(safe-area-inset-left));
   padding-right: max(1.25rem, env(safe-area-inset-right));
